@@ -7,6 +7,7 @@ const VALID_INTENTS: AssistantIntent[] = [
   'navigate_leads',
   'navigate_listings',
   'navigate_transactions',
+  'navigate_calendar',
   'navigate_actions',
   'open_lead_detail',
   'open_property_detail',
@@ -18,7 +19,7 @@ const VALID_INTENTS: AssistantIntent[] = [
   'clarification_request',
 ]
 
-const VALID_ROUTES = ['/dashboard', '/dashboard/briefing', '/people', '/transactions']
+const VALID_ROUTES = ['/dashboard', '/dashboard/briefing', '/people', '/transactions', '/calendar']
 
 const assistantResponseSchema = {
   type: 'object',
@@ -119,7 +120,7 @@ export async function getAssistantDecision(request: AssistantRequest): Promise<A
     const output = extractResponseText(data)
     if (!output) return fallbackDecision(request)
 
-    return normalizeDecision(JSON.parse(output))
+    return withRequestDefaults(normalizeDecision(JSON.parse(output)), request.message)
   } catch (error) {
     console.error('[Assistant] decision error:', error)
     return fallbackDecision(request)
@@ -129,13 +130,19 @@ export async function getAssistantDecision(request: AssistantRequest): Promise<A
 export function getAssistantContext() {
   return {
     routes: VALID_ROUTES,
+    calendar: {
+      route: '/calendar',
+      highlightId: 'section:calendar',
+      conflictsHighlightId: 'section:calendar-conflicts',
+      capability: 'Shows AI-added tasks, day/week/month views, conflicts, and free-time suggestions.',
+    },
     topAction: topAction
       ? {
           id: topAction.id,
           type: topAction.type,
           title: topAction.title,
           route: '/dashboard',
-          highlightId: `action:${topAction.id}`,
+          highlightId: 'section:tasks',
           summary: topAction.summary,
         }
       : null,
@@ -206,7 +213,7 @@ function buildSystemPrompt() {
     'Return valid JSON only. No markdown, no prose outside the JSON.',
     'Use only the provided routes, ids, and records. Do not fabricate records.',
     'If the request is ambiguous, use intent clarification_request, no targetRoute, no targetId, highlight false, and include a short clarificationQuestion.',
-    'Prefer the most useful page for the user request: top leads go to /people, urgent transactions go to /transactions, top actions and tasks go to /dashboard, the full action plan goes to /dashboard/briefing.',
+    'Prefer the most useful page for the user request: top leads go to /people, calendar/schedule/free-time/conflict questions go to /calendar, urgent transactions go to /transactions, top actions and tasks go to /dashboard, the full action plan goes to /dashboard/briefing.',
     'voiceResponse should be warm, concise, and confident, suitable for spoken playback.',
   ].join(' ')
 }
@@ -253,6 +260,22 @@ function fallbackDecision(request: AssistantRequest): AssistantDecision {
     }
   }
 
+  if (matches(text, ['calendar', 'schedule', 'availability', 'free time', 'conflict', 'conflicts', 'week', 'month'])) {
+    return {
+      intent: 'navigate_calendar',
+      targetRoute: '/calendar',
+      targetId: matches(text, ['conflict', 'conflicts', 'free time', 'availability'])
+        ? 'section:calendar-conflicts'
+        : 'section:calendar',
+      highlight: true,
+      voiceResponse: matches(text, ['conflict', 'conflicts'])
+        ? 'I opened the calendar and highlighted the AI conflict checks.'
+        : 'I opened your CRM calendar with AI-added tasks.',
+      confidence: 0.88,
+      clarificationQuestion: null,
+    }
+  }
+
   if (matches(text, ['listing', 'property', 'match'])) {
     return {
       intent: 'open_property_detail',
@@ -283,7 +306,7 @@ function fallbackDecision(request: AssistantRequest): AssistantDecision {
     return {
       intent: 'navigate_actions',
       targetRoute: '/dashboard',
-      targetId: topAction ? `action:${topAction.id}` : 'section:top-actions',
+      targetId: 'section:tasks',
       highlight: true,
       voiceResponse: topAction
         ? `Start with ${topAction.title}. I highlighted it for you.`
@@ -325,7 +348,7 @@ function normalizeDecision(value: unknown): AssistantDecision {
     ? candidate.intent
     : 'general_question'
 
-  return {
+  return withRequestDefaults({
     intent,
     targetRoute,
     targetId: typeof candidate.targetId === 'string' ? candidate.targetId : null,
@@ -342,7 +365,25 @@ function normalizeDecision(value: unknown): AssistantDecision {
       typeof candidate.clarificationQuestion === 'string'
         ? candidate.clarificationQuestion
         : null,
+  }, '')
+}
+
+function withRequestDefaults(decision: AssistantDecision, message: string): AssistantDecision {
+  const text = message.toLowerCase()
+
+  if (decision.intent === 'navigate_calendar') {
+    const requestedConflictView = matches(text, ['conflict', 'conflicts', 'free time', 'availability'])
+    return {
+      ...decision,
+      targetRoute: '/calendar',
+      targetId: requestedConflictView
+        ? 'section:calendar-conflicts'
+        : decision.targetId ?? 'section:calendar',
+      highlight: true,
+    }
   }
+
+  return decision
 }
 
 function highestScoreLead() {

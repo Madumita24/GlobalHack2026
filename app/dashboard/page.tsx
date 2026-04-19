@@ -4,22 +4,18 @@ import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import {
   Sparkles, TrendingUp, Clock, Users, Phone, Mail, MessageSquare,
-  ArrowRight, CalendarDays, Home, Flame, RotateCcw, Tag, ChevronRight,
-  Send, AlertTriangle, CheckCircle2, X,
+  CalendarDays, Home, Flame, RotateCcw, Tag, ChevronRight,
+  Send, AlertTriangle, CheckCircle2, X, Circle,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { BriefingCard } from '@/components/dashboard/BriefingCard'
-import { ActionCard } from '@/components/dashboard/ActionCard'
-import { ActionExecutionDialog } from '@/components/dashboard/ActionExecutionDialog'
 import { VoiceOrb } from '@/components/voice/VoiceOrb'
-import { mockLeads, mockTransactions, mockTasks, mockProperties, mockEvents, agentProfile } from '@/lib/mock-data'
+import { mockLeads, mockTransactions, mockTasks, mockProperties, mockEvents } from '@/lib/mock-data'
 import { generateRecommendedActions } from '@/lib/scoring'
 import { useVoice } from '@/hooks/useVoice'
-import { getBriefingScript, getActionScript, getConfirmationScript } from '@/lib/voice-scripts'
 import type { Lead } from '@/types/lead'
-import type { RecommendedAction, Transaction } from '@/types/action'
+import type { RecommendedAction, Task, Transaction } from '@/types/action'
 
 // ── Scoring engine — deterministic, called once at render ────────────────────
 
@@ -131,97 +127,180 @@ const TASK_ICON_MAP = {
   other: { icon: Tag,           color: 'text-gray-500',    bg: 'bg-gray-50'    },
 }
 
-function rememberCompletedAction(actionId: string) {
-  try {
-    const current = JSON.parse(window.localStorage.getItem('lofty:completedActions') ?? '[]') as string[]
-    window.localStorage.setItem(
-      'lofty:completedActions',
-      JSON.stringify(Array.from(new Set([...current, actionId])).slice(-10)),
-    )
-  } catch {
-    // Local storage is best-effort context for the assistant.
-  }
+function TodayTodoPanel({
+  tasks,
+  doneTaskIds,
+  urgentTransactions,
+  nextAction,
+  onToggleTask,
+}: {
+  tasks: Task[]
+  doneTaskIds: Set<string>
+  urgentTransactions: Transaction[]
+  nextAction: RecommendedAction | null
+  onToggleTask: (taskId: string) => void
+}) {
+  const incompleteTasks = tasks.filter((task) => !task.completed && !doneTaskIds.has(task.id))
+  const completedCount = tasks.filter((task) => task.completed || doneTaskIds.has(task.id)).length
+  const progress = tasks.length === 0 ? 0 : Math.round((completedCount / tasks.length) * 100)
+
+  return (
+    <section
+      data-assistant-id="section:tasks"
+      className="mb-5 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm"
+    >
+      <div className="flex items-start justify-between gap-6 px-5 py-5">
+        <div className="min-w-0 flex-1">
+          <div className="mb-2 flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-[#1a6bcc]" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#1a6bcc]">
+              Today&apos;s To-Do
+            </span>
+            <span className="text-[10px] text-gray-400">· synced with your AI action plan</span>
+          </div>
+          <h1 className="text-xl font-bold leading-tight text-gray-900">
+            {incompleteTasks.length === 0
+              ? 'You are caught up on scheduled tasks.'
+              : `${incompleteTasks.length} tasks need your attention today.`}
+          </h1>
+          <p className="mt-1 text-sm text-gray-500">
+            {nextAction
+              ? `Your next best move is ${nextAction.title}.`
+              : 'Use this list to clear the day without rereading the full briefing.'}
+          </p>
+        </div>
+
+        <div className="w-56 shrink-0 rounded-xl bg-gray-50 p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-semibold text-gray-700">Task progress</span>
+            <span className="text-xs font-bold text-[#1a6bcc]">{progress}%</span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-gray-200">
+            <div
+              className="h-full rounded-full bg-[#1a6bcc] transition-all"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-center">
+            <div className="rounded-lg bg-white px-2 py-2">
+              <p className="text-lg font-bold text-gray-900">{incompleteTasks.length}</p>
+              <p className="text-[10px] text-gray-400">Open</p>
+            </div>
+            <div className="rounded-lg bg-white px-2 py-2">
+              <p className="text-lg font-bold text-orange-600">{urgentTransactions.length}</p>
+              <p className="text-[10px] text-gray-400">Deadlines</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-[1.35fr_0.95fr] gap-4 border-t border-gray-100 px-5 py-4">
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-xs font-semibold text-gray-700">Scheduled work</p>
+            <Link href="/dashboard/briefing" className="text-xs font-medium text-[#1a6bcc] hover:underline">
+              Full Briefing
+            </Link>
+          </div>
+          <div className="space-y-1.5">
+            {tasks.slice(0, 4).map((task) => {
+              const m = TASK_ICON_MAP[task.type]
+              const Icon = m.icon
+              const lead = task.leadId ? mockLeads.find((item) => item.id === task.leadId) : null
+              const done = task.completed || doneTaskIds.has(task.id)
+
+              return (
+                <button
+                  key={task.id}
+                  data-assistant-id={`task:${task.id}`}
+                  onClick={() => onToggleTask(task.id)}
+                  className={[
+                    'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors',
+                    done ? 'bg-emerald-50/70 opacity-70' : 'hover:bg-gray-50',
+                  ].join(' ')}
+                >
+                  <span className={done ? 'text-emerald-600' : 'text-gray-300'}>
+                    {done ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
+                  </span>
+                  <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${m.bg}`}>
+                    <Icon className={`h-3.5 w-3.5 ${m.color}`} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className={`truncate text-sm font-medium ${done ? 'text-gray-500 line-through' : 'text-gray-800'}`}>
+                      {task.title}
+                    </p>
+                    <p className="truncate text-xs text-gray-400">
+                      {lead?.name ?? 'General task'} {task.dueTime ? `· ${task.dueTime}` : ''}
+                    </p>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-2 text-xs font-semibold text-gray-700">AI priority</p>
+          <div className="rounded-xl border border-[#1a6bcc]/10 bg-[#1a6bcc]/5 p-3">
+            {nextAction ? (
+              <>
+                <div className="mb-2 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-gray-900">{nextAction.title}</p>
+                    <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-gray-500">
+                      {nextAction.summary}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-white px-2 py-0.5 text-xs font-bold text-[#1a6bcc]">
+                    {nextAction.priorityScore}
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  {nextAction.reasons.slice(0, 2).map((reason, index) => (
+                    <p key={index} className="flex gap-1.5 text-xs leading-relaxed text-gray-600">
+                      <span className="text-[#1a6bcc]">·</span>
+                      <span>{reason}</span>
+                    </p>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-gray-500">No AI actions are pending right now.</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const [panel, setPanel] = useState<PanelContent>(null)
-  const [executionAction, setExecutionAction] = useState<RecommendedAction | null>(null)
-  const [doneIds, setDoneIds] = useState<Set<string>>(new Set())
-  const { state: voiceState, activeId: voiceActiveId, speak, stop } = useVoice()
+  const [doneTaskIds, setDoneTaskIds] = useState<Set<string>>(new Set())
+  const { state: voiceState, speak, stop } = useVoice()
 
   // Derived data for context widgets
   const hotLeads       = mockLeads.filter((l) => l.stage === 'hot' || l.score >= 70)
   const backToSite     = mockLeads.filter((l) => l.intentSignals.includes('back_to_site'))
   const coolingLeads   = mockLeads.filter((l) => l.lastContactDaysAgo >= 14)
-  const pendingTasks   = mockTasks.filter((t) => !t.completed)
+  const pendingTasks   = mockTasks.filter((t) => !t.completed && !doneTaskIds.has(t.id))
   const urgentTx       = mockTransactions.filter((t) => t.daysUntilDeadline <= 3)
   const backOnMarket   = mockProperties.filter((p) => p.status === 'back_on_market')
 
-  const markDone = useCallback(
-    (action: RecommendedAction) => {
-      setDoneIds((prev) => new Set([...prev, action.id]))
-      rememberCompletedAction(action.id)
-      speak(getConfirmationScript(action), `confirm-${action.id}`)
-    },
-    [speak],
-  )
-
-  const completeExecution = useCallback(
-    (action: RecommendedAction) => {
-      markDone(action)
-      setPanel((prev) =>
-        prev?.kind === 'action' && prev.data.id === action.id ? null : prev
-      )
-    },
-    [markDone],
-  )
-
-  const openWhyThis = (action: RecommendedAction) =>
-    setPanel((prev) =>
-      prev?.kind === 'action' && prev.data.id === action.id
-        ? null
-        : { kind: 'action', data: action }
-    )
-
-  const hearBriefing = useCallback(() => {
-    speak(getBriefingScript(agentProfile.name, topActions), 'briefing')
-  }, [speak])
-
-  const hearAction = useCallback(
-    (action: RecommendedAction) => {
-      const lead     = action.leadId     ? mockLeads.find((l) => l.id === action.leadId)          : null
-      const property = action.propertyId ? mockProperties.find((p) => p.id === action.propertyId) : null
-      speak(getActionScript(action, lead, property), `action-${action.id}`)
-    },
-    [speak],
-  )
-
-  const executionLead = executionAction?.leadId
-    ? mockLeads.find((l) => l.id === executionAction.leadId) ?? null
-    : null
-  const executionProperty = executionAction?.propertyId
-    ? mockProperties.find((p) => p.id === executionAction.propertyId) ?? null
-    : null
-  const executionTransaction = executionAction?.transactionId
-    ? mockTransactions.find((t) => t.id === executionAction.transactionId) ?? null
-    : null
+  const toggleTaskDone = useCallback((taskId: string) => {
+    setDoneTaskIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(taskId)) next.delete(taskId)
+      else next.add(taskId)
+      return next
+    })
+  }, [])
 
   return (
     <div className="flex flex-1 min-h-0">
       <main className="flex-1 overflow-y-auto px-6 py-5 min-w-0">
-
-        {/* ── AI Briefing Hero ──────────────────────────────────────────── */}
-        <div data-assistant-id="section:briefing">
-          <BriefingCard
-            agentName={agentProfile.name}
-            actions={topActions}
-            isSpeaking={voiceActiveId === 'briefing' && voiceState === 'playing'}
-            isLoading={voiceActiveId === 'briefing' && voiceState === 'loading'}
-            onHearBriefing={hearBriefing}
-          />
-        </div>
 
         {/* ── Stat Strip ────────────────────────────────────────────────── */}
         <div className="grid grid-cols-4 gap-3 mb-6">
@@ -279,58 +358,14 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {/* ── AI Top Actions ─────────────────────────────────────────────── */}
-        <div className="mb-6" data-assistant-id="section:top-actions">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-3.5 h-3.5 text-[#1a6bcc]" />
-              <span className="text-xs font-semibold text-[#1a6bcc] uppercase tracking-wider">
-                AI Top Actions · Start here
-              </span>
-              <span className="text-xs text-gray-400">
-                ranked by priority score
-              </span>
-            </div>
-            <Link href="/dashboard/briefing">
-              <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
-                <ArrowRight className="w-3 h-3" />
-                Full Briefing
-              </Button>
-            </Link>
-          </div>
-
-          <div className="space-y-3">
-            {topActions.map((action, idx) => {
-              const lead = action.leadId
-                ? mockLeads.find((l) => l.id === action.leadId) ?? null
-                : null
-              const property = action.propertyId
-                ? mockProperties.find((p) => p.id === action.propertyId) ?? null
-                : null
-              const isSelected =
-                panel?.kind === 'action' && panel.data.id === action.id
-
-              const actionVoiceId = `action-${action.id}`
-              return (
-                <ActionCard
-                  key={action.id}
-                  action={action}
-                  rank={idx + 1}
-                  lead={lead}
-                  property={property}
-                  isSelected={isSelected}
-                  isDone={doneIds.has(action.id)}
-                  isSpeaking={voiceActiveId === actionVoiceId && voiceState === 'playing'}
-                  isVoiceLoading={voiceActiveId === actionVoiceId && voiceState === 'loading'}
-                  onWhyThis={openWhyThis}
-                  onExecute={setExecutionAction}
-                  onSnooze={() => setPanel(null)}
-                  onHearAction={hearAction}
-                />
-              )
-            })}
-          </div>
-        </div>
+        {/* ── Today's To-Do Command Panel ───────────────────────────────── */}
+        <TodayTodoPanel
+          tasks={mockTasks}
+          doneTaskIds={doneTaskIds}
+          urgentTransactions={urgentTx}
+          nextAction={topActions[0] ?? null}
+          onToggleTask={toggleTaskDone}
+        />
 
         {/* ── Context Widgets ────────────────────────────────────────────── */}
         <div className="grid grid-cols-5 gap-4">
@@ -339,7 +374,7 @@ export default function DashboardPage() {
           <div className="col-span-3 space-y-4">
 
             {/* Today's Opportunities */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm" data-assistant-id="section:tasks">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm" data-assistant-id="section:opportunities">
               <SectionHeader
                 icon={<TrendingUp className="w-4 h-4" />}
                 title="Today's Opportunities"
@@ -475,7 +510,7 @@ export default function DashboardPage() {
                 <div className="flex gap-2 mb-3">
                   {(['call', 'text', 'email', 'other'] as const).map((type) => {
                     const m = TASK_ICON_MAP[type]
-                    const count = mockTasks.filter((t) => t.type === type && !t.completed).length
+                    const count = mockTasks.filter((t) => t.type === type && !t.completed && !doneTaskIds.has(t.id)).length
                     return (
                       <div key={type} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl ${m.bg}`}>
                         <m.icon className={`w-3 h-3 ${m.color}`} />
@@ -487,12 +522,13 @@ export default function DashboardPage() {
                 {mockTasks.map((task) => {
                   const m = TASK_ICON_MAP[task.type]
                   const lead = mockLeads.find((l) => l.id === task.leadId)
+                  const taskDone = task.completed || doneTaskIds.has(task.id)
                   return (
                     <div
                       key={task.id}
                       data-assistant-id={`task:${task.id}`}
                       className={`flex items-center gap-3 px-2 py-2.5 rounded-xl ${
-                        task.completed ? 'opacity-35' : 'hover:bg-gray-50 cursor-pointer'
+                        taskDone ? 'opacity-35' : 'hover:bg-gray-50 cursor-pointer'
                       }`}
                     >
                       <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${m.bg}`}>
@@ -624,22 +660,17 @@ export default function DashboardPage() {
       {/* ── Voice Orb ─────────────────────────────────────────────────────── */}
       <VoiceOrb
         voiceState={voiceState}
-        onActivate={hearBriefing}
+        onActivate={() => {
+          const nextAction = topActions[0]
+          speak(
+            nextAction
+              ? `You have ${pendingTasks.length} tasks remaining. Start with ${nextAction.title}.`
+              : `You have ${pendingTasks.length} tasks remaining today.`,
+            'todo-summary',
+          )
+        }}
         onStop={stop}
       />
-
-      {executionAction && (
-        <ActionExecutionDialog
-          key={executionAction.id}
-          open
-          action={executionAction}
-          lead={executionLead}
-          property={executionProperty}
-          transaction={executionTransaction}
-          onClose={() => setExecutionAction(null)}
-          onConfirm={completeExecution}
-        />
-      )}
 
       {/* ── Detail Panel ──────────────────────────────────────────────────── */}
       {panel && (

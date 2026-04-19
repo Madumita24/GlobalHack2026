@@ -3,6 +3,7 @@ export type AssistantIntent =
   | 'navigate_leads'
   | 'navigate_listings'
   | 'navigate_transactions'
+  | 'navigate_calendar'
   | 'navigate_actions'
   | 'open_lead_detail'
   | 'open_property_detail'

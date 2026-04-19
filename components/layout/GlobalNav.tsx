@@ -7,7 +7,7 @@ import { Search, Bell, HelpCircle, Settings, Phone, Inbox, Sparkles } from 'luci
 import { cn } from '@/lib/utils'
 
 const navLinks = [
-  { label: 'CRM', href: '/people' },
+  { label: 'CRM', href: '/people', activeOn: ['/people', '/calendar'] },
   { label: 'Sales', href: '/transactions' },
   { label: 'Marketing', href: '/marketing' },
   { label: 'Content', href: '/content' },
@@ -43,7 +43,9 @@ export default function GlobalNav() {
       {/* Nav links ──────────────────────────────────── */}
       <nav className="flex items-stretch flex-1 px-2">
         {navLinks.map(link => {
-          const active = pathname.startsWith(link.href)
+          const active = link.activeOn
+            ? link.activeOn.some((path) => pathname.startsWith(path))
+            : pathname.startsWith(link.href)
           return (
             <Link
               key={link.href}
