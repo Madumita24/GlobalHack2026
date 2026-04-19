@@ -2,7 +2,7 @@
 
 import {
   Phone, MessageSquare, Mail, Send, Clock, ArrowRight,
-  Sparkles, ChevronRight, CheckCircle2, Volume2, AlertTriangle,
+  Sparkles, ChevronRight, CheckCircle2, Volume2, AlertTriangle, Loader2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { RecommendedAction } from '@/types/action'
@@ -42,6 +42,8 @@ export interface ActionCardProps {
   property?: Property | null
   isSelected?: boolean
   isDone?: boolean
+  isSpeaking?: boolean
+  isVoiceLoading?: boolean
   onWhyThis: (action: RecommendedAction) => void
   onExecute: (action: RecommendedAction) => void
   onSnooze?: (action: RecommendedAction) => void
@@ -57,6 +59,8 @@ export function ActionCard({
   property,
   isSelected = false,
   isDone = false,
+  isSpeaking = false,
+  isVoiceLoading = false,
   onWhyThis,
   onExecute,
   onSnooze,
@@ -182,10 +186,19 @@ export function ActionCard({
           )}
 
           {onHearAction && (
-            <Volume2
-              className="w-3.5 h-3.5 text-gray-300 ml-auto cursor-pointer hover:text-gray-500 transition-colors"
+            <button
+              className="ml-auto p-1 rounded-lg hover:bg-gray-100 transition-colors"
+              title={isSpeaking ? 'Stop' : 'Explain aloud'}
               onClick={() => onHearAction(action)}
-            />
+            >
+              {isVoiceLoading ? (
+                <Loader2 className="w-3.5 h-3.5 text-[#1a6bcc] animate-spin" />
+              ) : isSpeaking ? (
+                <Volume2 className="w-3.5 h-3.5 text-[#1a6bcc] animate-pulse" />
+              ) : (
+                <Volume2 className="w-3.5 h-3.5 text-gray-300 hover:text-gray-500" />
+              )}
+            </button>
           )}
         </div>
       </div>

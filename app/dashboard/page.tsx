@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import {
   Sparkles, TrendingUp, Clock, Users, Phone, Mail, MessageSquare,
@@ -12,8 +12,11 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { BriefingCard } from '@/components/dashboard/BriefingCard'
 import { ActionCard } from '@/components/dashboard/ActionCard'
+import { VoiceOrb } from '@/components/voice/VoiceOrb'
 import { mockLeads, mockTransactions, mockTasks, mockProperties, mockEvents, agentProfile } from '@/lib/mock-data'
 import { generateRecommendedActions } from '@/lib/scoring'
+import { useVoice } from '@/hooks/useVoice'
+import { getBriefingScript, getActionScript, getConfirmationScript } from '@/lib/voice-scripts'
 import type { Lead } from '@/types/lead'
 import type { RecommendedAction, Transaction } from '@/types/action'
 import type { Property } from '@/types/property'
@@ -133,6 +136,7 @@ const TASK_ICON_MAP = {
 export default function DashboardPage() {
   const [panel, setPanel] = useState<PanelContent>(null)
   const [doneIds, setDoneIds] = useState<Set<string>>(new Set())
+  const { state: voiceState, activeId: voiceActiveId, speak, stop } = useVoice()
 
   // Derived data for context widgets
   const hotLeads       = mockLeads.filter((l) => l.stage === 'hot' || l.score >= 70)
@@ -142,8 +146,13 @@ export default function DashboardPage() {
   const urgentTx       = mockTransactions.filter((t) => t.daysUntilDeadline <= 3)
   const backOnMarket   = mockProperties.filter((p) => p.status === 'back_on_market')
 
-  const markDone = (action: RecommendedAction) =>
-    setDoneIds((prev) => new Set([...prev, action.id]))
+  const markDone = useCallback(
+    (action: RecommendedAction) => {
+      setDoneIds((prev) => new Set([...prev, action.id]))
+      speak(getConfirmationScript(action), `confirm-${action.id}`)
+    },
+    [speak],
+  )
 
   const openWhyThis = (action: RecommendedAction) =>
     setPanel((prev) =>
@@ -151,6 +160,19 @@ export default function DashboardPage() {
         ? null
         : { kind: 'action', data: action }
     )
+
+  const hearBriefing = useCallback(() => {
+    speak(getBriefingScript(agentProfile.name, topActions), 'briefing')
+  }, [speak])
+
+  const hearAction = useCallback(
+    (action: RecommendedAction) => {
+      const lead     = action.leadId     ? mockLeads.find((l) => l.id === action.leadId)          : null
+      const property = action.propertyId ? mockProperties.find((p) => p.id === action.propertyId) : null
+      speak(getActionScript(action, lead, property), `action-${action.id}`)
+    },
+    [speak],
+  )
 
   return (
     <div className="flex flex-1 min-h-0">
@@ -160,7 +182,9 @@ export default function DashboardPage() {
         <BriefingCard
           agentName={agentProfile.name}
           actions={topActions}
-          onHearBriefing={() => console.log('🔊 Hear briefing — voice layer in Phase 5')}
+          isSpeaking={voiceActiveId === 'briefing' && voiceState === 'playing'}
+          isLoading={voiceActiveId === 'briefing' && voiceState === 'loading'}
+          onHearBriefing={hearBriefing}
         />
 
         {/* ── Stat Strip ────────────────────────────────────────────────── */}
@@ -250,6 +274,7 @@ export default function DashboardPage() {
               const isSelected =
                 panel?.kind === 'action' && panel.data.id === action.id
 
+              const actionVoiceId = `action-${action.id}`
               return (
                 <ActionCard
                   key={action.id}
@@ -259,12 +284,12 @@ export default function DashboardPage() {
                   property={property}
                   isSelected={isSelected}
                   isDone={doneIds.has(action.id)}
+                  isSpeaking={voiceActiveId === actionVoiceId && voiceState === 'playing'}
+                  isVoiceLoading={voiceActiveId === actionVoiceId && voiceState === 'loading'}
                   onWhyThis={openWhyThis}
                   onExecute={markDone}
                   onSnooze={() => setPanel(null)}
-                  onHearAction={() =>
-                    console.log('🔊 Explain action aloud — voice layer in Phase 5')
-                  }
+                  onHearAction={hearAction}
                 />
               )
             })}
@@ -558,6 +583,13 @@ export default function DashboardPage() {
           </div>
         </div>
       </main>
+
+      {/* ── Voice Orb ─────────────────────────────────────────────────────── */}
+      <VoiceOrb
+        voiceState={voiceState}
+        onActivate={hearBriefing}
+        onStop={stop}
+      />
 
       {/* ── Detail Panel ──────────────────────────────────────────────────── */}
       {panel && (

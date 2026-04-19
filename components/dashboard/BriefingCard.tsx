@@ -1,13 +1,15 @@
 'use client'
 
 import Image from 'next/image'
-import { Sparkles, Volume2, TrendingUp, Clock, RotateCcw } from 'lucide-react'
+import { Sparkles, Volume2, TrendingUp, Clock, RotateCcw, Loader2, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { RecommendedAction } from '@/types/action'
 
 interface BriefingCardProps {
   agentName: string
   actions: RecommendedAction[]
+  isSpeaking?: boolean
+  isLoading?: boolean
   onHearBriefing?: () => void
 }
 
@@ -36,7 +38,7 @@ function generateBriefingText(actions: RecommendedAction[]): string {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function BriefingCard({ agentName, actions, onHearBriefing }: BriefingCardProps) {
+export function BriefingCard({ agentName, actions, isSpeaking = false, isLoading = false, onHearBriefing }: BriefingCardProps) {
   const firstName = agentName.split(' ')[0]
   const topAction = actions[0] ?? null
 
@@ -126,11 +128,20 @@ export function BriefingCard({ agentName, actions, onHearBriefing }: BriefingCar
           <Button
             variant="outline"
             size="sm"
-            className="bg-white/10 border-white/20 text-white hover:bg-white/20 text-xs gap-1.5 w-full"
+            className={`border-white/20 text-white text-xs gap-1.5 w-full transition-all ${
+              isSpeaking
+                ? 'bg-white/20 border-white/40 shadow-[0_0_10px_rgba(255,255,255,0.1)]'
+                : 'bg-white/10 hover:bg-white/20'
+            }`}
             onClick={onHearBriefing}
           >
-            <Volume2 className="w-3 h-3" />
-            Hear Briefing
+            {isLoading ? (
+              <><Loader2 className="w-3 h-3 animate-spin" /> Preparing…</>
+            ) : isSpeaking ? (
+              <><Square className="w-3 h-3 fill-white" /> Stop</>
+            ) : (
+              <><Volume2 className="w-3 h-3" /> Hear Briefing</>
+            )}
           </Button>
         </div>
       </div>

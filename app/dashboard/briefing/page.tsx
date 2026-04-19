@@ -1,14 +1,17 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { Sparkles, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import DetailPanel from '@/components/layout/DetailPanel'
 import { BriefingCard } from '@/components/dashboard/BriefingCard'
 import { ActionCard } from '@/components/dashboard/ActionCard'
+import { VoiceOrb } from '@/components/voice/VoiceOrb'
 import { generateRecommendedActions } from '@/lib/scoring'
 import { mockLeads, mockProperties, mockEvents, mockTransactions } from '@/lib/mock-data'
+import { useVoice } from '@/hooks/useVoice'
+import { getBriefingScript, getActionScript, getConfirmationScript } from '@/lib/voice-scripts'
 import type { RecommendedAction } from '@/types/action'
 
 // ── Live scoring engine ───────────────────────────────────────────────────────
@@ -25,8 +28,16 @@ const liveActions = generateRecommendedActions(
 export default function BriefingPage() {
   const [selectedAction, setSelectedAction] = useState<RecommendedAction | null>(null)
   const [doneIds, setDoneIds] = useState<Set<string>>(new Set())
+  const { state: voiceState, activeId: voiceActiveId, speak, stop } = useVoice()
 
-  const markDone = (id: string) => setDoneIds(prev => new Set([...prev, id]))
+  const markDone = useCallback(
+    (action: RecommendedAction) => {
+      setDoneIds(prev => new Set([...prev, action.id]))
+      if (selectedAction?.id === action.id) setSelectedAction(null)
+      speak(getConfirmationScript(action), `confirm-${action.id}`)
+    },
+    [selectedAction, speak],
+  )
 
   const visibleActions = liveActions.filter(a => !doneIds.has(a.id))
 
@@ -40,22 +51,22 @@ export default function BriefingPage() {
     ? mockTransactions.find(t => t.id === selectedAction.transactionId) ?? null
     : null
 
-  function handleWhyThis(action: RecommendedAction) {
+  const handleWhyThis = useCallback((action: RecommendedAction) => {
     setSelectedAction(prev => (prev?.id === action.id ? null : action))
-  }
+  }, [])
 
-  function handleExecute(action: RecommendedAction) {
-    markDone(action.id)
-    if (selectedAction?.id === action.id) setSelectedAction(null)
-  }
+  const handleHearBriefing = useCallback(() => {
+    speak(getBriefingScript('James Carter', liveActions), 'briefing')
+  }, [speak])
 
-  function handleHearBriefing() {
-    console.log('[TTS] Hear Briefing — Phase 5A: ElevenLabs integration pending')
-  }
-
-  function handleHearAction(action: RecommendedAction) {
-    console.log('[TTS] Hear action:', action.title, '— Phase 5A pending')
-  }
+  const handleHearAction = useCallback(
+    (action: RecommendedAction) => {
+      const actionLead     = action.leadId     ? mockLeads.find(l => l.id === action.leadId)          : null
+      const actionProperty = action.propertyId ? mockProperties.find(p => p.id === action.propertyId) : null
+      speak(getActionScript(action, actionLead, actionProperty), `action-${action.id}`)
+    },
+    [speak],
+  )
 
   return (
     <div className="flex flex-1 min-h-0">
@@ -65,6 +76,8 @@ export default function BriefingPage() {
         <BriefingCard
           agentName="James Carter"
           actions={liveActions}
+          isSpeaking={voiceActiveId === 'briefing' && voiceState === 'playing'}
+          isLoading={voiceActiveId === 'briefing' && voiceState === 'loading'}
           onHearBriefing={handleHearBriefing}
         />
 
@@ -112,9 +125,11 @@ export default function BriefingPage() {
                 property={actionProperty}
                 isSelected={selectedAction?.id === action.id}
                 isDone={doneIds.has(action.id)}
+                isSpeaking={voiceActiveId === `action-${action.id}` && voiceState === 'playing'}
+                isVoiceLoading={voiceActiveId === `action-${action.id}` && voiceState === 'loading'}
                 onWhyThis={handleWhyThis}
-                onExecute={handleExecute}
-                onSnooze={() => markDone(action.id)}
+                onExecute={markDone}
+                onSnooze={() => markDone(action)}
                 onHearAction={handleHearAction}
               />
             )
@@ -129,6 +144,13 @@ export default function BriefingPage() {
           )}
         </div>
       </main>
+
+      {/* Voice Orb ─────────────────────────────────────────────────────── */}
+      <VoiceOrb
+        voiceState={voiceState}
+        onActivate={handleHearBriefing}
+        onStop={stop}
+      />
 
       {/* Reasoning Panel ───────────────────────────────────────────────── */}
       <DetailPanel
