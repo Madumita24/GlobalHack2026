@@ -5,13 +5,13 @@ import { agentProfile } from '@/lib/mock-data'
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-[#F8FAFC]">
+    <div className="flex h-screen flex-col overflow-hidden bg-[#F8FAFC] dark:bg-slate-950">
       <GlobalNav />
       <div className="flex min-h-0 flex-1">
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">
           <TopHeader agentName={agentProfile.name} />
-          <div className="flex min-h-0 flex-1">{children}</div>
+          <div className="flex min-h-0 flex-1 flex-col pb-8 pr-8 lg:pb-12 lg:pr-12 xl:pb-16 xl:pr-16">{children}</div>
         </div>
       </div>
     </div>

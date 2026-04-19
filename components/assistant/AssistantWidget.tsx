@@ -37,6 +37,8 @@ const EXAMPLE_PROMPTS = [
   'Send me to the transaction that needs attention',
 ]
 
+const ASSISTANT_PROMPT_WORDS = ['ask', 'anything', 'to', 'our', 'AI']
+
 type BrowserSpeechRecognition = {
   continuous: boolean
   interimResults: boolean
@@ -275,11 +277,25 @@ export function AssistantWidget() {
   if (open) return null
 
   return (
-    <div className="fixed bottom-6 right-6 z-[65] flex max-w-[calc(100vw-3rem)] items-end gap-3 flex-row-reverse bg-transparent group">
+    <div
+      data-tour="assistant-widget"
+      className="fixed bottom-3 right-3 z-[65] flex max-w-[calc(100vw-3rem)] items-end gap-3 flex-row-reverse bg-transparent group overflow-visible"
+    >
       {/* Hover tooltip — appears to the left of the robot */}
       <span className="absolute bottom-8 right-full mr-3 whitespace-nowrap rounded-full bg-gray-900/90 px-3 py-1.5 text-[12px] font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none shadow-lg z-[70]">
         Ask Lofty AI ✨
       </span>
+      <div className="pointer-events-none absolute -bottom-7 right-0 flex flex-wrap justify-end gap-1 text-[11px] font-semibold tracking-tight text-[#1a6bcc] z-50">
+        {ASSISTANT_PROMPT_WORDS.map((word, index) => (
+          <span
+            key={`${word}-${index}`}
+            className="inline-block opacity-0 animate-assistant-word"
+            style={{ animationDelay: `${index * 0.14}s` }}
+          >
+            {word}
+          </span>
+        ))}
+      </div>
       <button
         onClick={() => setOpen(true)}
         title="Open Lofty Assistant"

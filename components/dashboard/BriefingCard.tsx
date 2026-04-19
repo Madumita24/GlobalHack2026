@@ -69,7 +69,10 @@ export function BriefingCard({ agentName, actions, isSpeaking = false, isLoading
   }, [fullGreeting])
 
   return (
-    <div className="rounded-2xl bg-gradient-to-br from-[#0A1020] via-[#0F1629] to-[#1a2f5e] p-6 mb-5 relative overflow-hidden">
+    <div
+      data-tour="briefing-card"
+      className="rounded-2xl bg-gradient-to-br from-[#0A1020] via-[#0F1629] to-[#1a2f5e] p-6 mb-5 relative overflow-hidden"
+    >
       {/* Background glows */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(26,107,204,0.25),transparent_60%)]" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(91,157,232,0.1),transparent_50%)]" />
