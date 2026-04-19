@@ -8,7 +8,6 @@ import DetailPanel from '@/components/layout/DetailPanel'
 import { BriefingCard } from '@/components/dashboard/BriefingCard'
 import { ActionCard } from '@/components/dashboard/ActionCard'
 import { ActionExecutionDialog } from '@/components/dashboard/ActionExecutionDialog'
-import { VoiceOrb } from '@/components/voice/VoiceOrb'
 import { generateRecommendedActions } from '@/lib/scoring'
 import { mockLeads, mockProperties, mockEvents, mockTransactions } from '@/lib/mock-data'
 import { useVoice } from '@/hooks/useVoice'
@@ -42,7 +41,7 @@ export default function BriefingPage() {
   const [selectedAction, setSelectedAction] = useState<RecommendedAction | null>(null)
   const [executionAction, setExecutionAction] = useState<RecommendedAction | null>(null)
   const [doneIds, setDoneIds] = useState<Set<string>>(new Set())
-  const { state: voiceState, activeId: voiceActiveId, speak, stop } = useVoice()
+  const { state: voiceState, activeId: voiceActiveId, speak } = useVoice()
 
   const markDone = useCallback(
     (action: RecommendedAction) => {
@@ -176,12 +175,6 @@ export default function BriefingPage() {
         </div>
       </main>
 
-      {/* Voice Orb ─────────────────────────────────────────────────────── */}
-      <VoiceOrb
-        voiceState={voiceState}
-        onActivate={handleHearBriefing}
-        onStop={stop}
-      />
 
       {executionAction && (
         <ActionExecutionDialog

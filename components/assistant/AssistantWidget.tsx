@@ -13,7 +13,6 @@ import type { FormEvent, ReactNode, RefObject } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   ArrowLeft,
-  Bot,
   Loader2,
   Mic,
   MicOff,
@@ -262,13 +261,26 @@ export function AssistantWidget() {
   if (open) return null
 
   return (
-    <div className="fixed bottom-6 left-6 z-[65] flex max-w-[calc(100vw-3rem)] items-center gap-2">
+    <div className="fixed bottom-6 right-6 z-[65] flex max-w-[calc(100vw-3rem)] items-end gap-3 flex-row-reverse bg-transparent group">
+      {/* Hover tooltip — appears to the left of the robot */}
+      <span className="absolute bottom-8 right-full mr-3 whitespace-nowrap rounded-full bg-gray-900/90 px-3 py-1.5 text-[12px] font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none shadow-lg z-[70]">
+        Ask Lofty AI ✨
+      </span>
       <button
         onClick={() => setOpen(true)}
-        className="flex h-12 w-12 items-center justify-center rounded-full border border-gray-200 bg-white text-[#1a6bcc] shadow-xl transition-all duration-200 hover:scale-105 hover:border-[#1a6bcc]/60 hover:shadow-[0_0_14px_rgba(26,107,204,0.2)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1a6bcc]"
         title="Open Lofty Assistant"
+        className="relative focus:outline-none bg-transparent border-none p-0 transition-transform duration-200 group-hover:scale-110 group-hover:-translate-y-1"
+        style={{ background: 'transparent' }}
       >
-        <Bot className="h-5 w-5" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/robo1.png"
+          alt="Lofty Assistant"
+          width={130}
+          height={130}
+          className="block object-contain bg-transparent"
+          style={{ background: 'none' }}
+        />
       </button>
       {(isSpeaking || status === 'navigating' || status === 'thinking') && (
         <div className="flex items-center gap-1.5 rounded-full bg-gray-900/85 px-3 py-1.5 text-[11px] font-medium text-white shadow-lg backdrop-blur-sm">

@@ -10,10 +10,8 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { VoiceOrb } from '@/components/voice/VoiceOrb'
 import { mockLeads, mockTransactions, mockTasks, mockProperties, mockEvents } from '@/lib/mock-data'
 import { generateRecommendedActions } from '@/lib/scoring'
-import { useVoice } from '@/hooks/useVoice'
 import type { Lead } from '@/types/lead'
 import type { RecommendedAction, Task, Transaction } from '@/types/action'
 
@@ -279,13 +277,11 @@ function TodayTodoPanel({
 export default function DashboardPage() {
   const [panel, setPanel] = useState<PanelContent>(null)
   const [doneTaskIds, setDoneTaskIds] = useState<Set<string>>(new Set())
-  const { state: voiceState, speak, stop } = useVoice()
 
   // Derived data for context widgets
   const hotLeads       = mockLeads.filter((l) => l.stage === 'hot' || l.score >= 70)
   const backToSite     = mockLeads.filter((l) => l.intentSignals.includes('back_to_site'))
   const coolingLeads   = mockLeads.filter((l) => l.lastContactDaysAgo >= 14)
-  const pendingTasks   = mockTasks.filter((t) => !t.completed && !doneTaskIds.has(t.id))
   const urgentTx       = mockTransactions.filter((t) => t.daysUntilDeadline <= 3)
   const backOnMarket   = mockProperties.filter((p) => p.status === 'back_on_market')
 
@@ -368,12 +364,10 @@ export default function DashboardPage() {
         />
 
         {/* ── Context Widgets ────────────────────────────────────────────── */}
-        <div className="grid grid-cols-5 gap-4">
+        <div className="grid grid-cols-3 gap-4">
 
-          {/* Left 3/5 ───────────────────────────────────────────────────── */}
-          <div className="col-span-3 space-y-4">
-
-            {/* Today's Opportunities */}
+          {/* Col 1 — Today's Opportunities (spans both rows) */}
+          <div className="row-span-2">
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm" data-assistant-id="section:opportunities">
               <SectionHeader
                 icon={<TrendingUp className="w-4 h-4" />}
@@ -384,10 +378,10 @@ export default function DashboardPage() {
               />
               <div className="grid grid-cols-4 gap-px bg-gray-100 mx-5 mb-5 rounded-xl overflow-hidden">
                 {[
-                  { label: 'High Interest',  value: hotLeads.length,    color: 'text-rose-600'    },
-                  { label: 'Back to Site',   value: backToSite.length,  color: 'text-amber-600'   },
-                  { label: 'Sell Request',   value: 1,                  color: 'text-violet-600'  },
-                  { label: 'Back on Market', value: backOnMarket.length, color: 'text-emerald-600' },
+                  { label: 'High Interest',  value: hotLeads.length,     color: 'text-rose-600'    },
+                  { label: 'Back to Site',   value: backToSite.length,   color: 'text-amber-600'   },
+                  { label: 'Sell Request',   value: 1,                   color: 'text-violet-600'  },
+                  { label: 'Back on Market', value: backOnMarket.length,  color: 'text-emerald-600' },
                 ].map((s) => (
                   <div key={s.label} className="bg-white px-3 py-2.5 text-center">
                     <p className={`text-lg font-bold ${s.color}`}>{s.value}</p>
@@ -412,40 +406,7 @@ export default function DashboardPage() {
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-gray-500 truncate mt-0.5">
-                        {lead.recentBehavior[0]}
-                      </p>
-                    </div>
-                    <ScorePill score={lead.score} />
-                    <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#1a6bcc] transition-colors shrink-0" />
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* All Leads */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-              <SectionHeader
-                icon={<Users className="w-4 h-4" />}
-                title="All Leads"
-                count={mockLeads.length}
-                countColor="bg-blue-50 text-blue-600"
-                href="/people"
-              />
-              <div className="px-4 pb-4 space-y-1">
-                {mockLeads.map((lead) => (
-                  <button
-                    key={lead.id}
-                    onClick={() => setPanel({ kind: 'lead', data: lead })}
-                    className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-blue-50/60 transition-all duration-100 group text-left"
-                  >
-                    <Avatar name={lead.name} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900">{lead.name}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {lead.source} · {lead.preferences.minBeds}–{lead.preferences.maxBeds} bed
-                        · ${(lead.budget / 1000).toFixed(0)}K
-                      </p>
+                      <p className="text-xs text-gray-500 truncate mt-0.5">{lead.recentBehavior[0]}</p>
                     </div>
                     <ScorePill score={lead.score} />
                     <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#1a6bcc] transition-colors shrink-0" />
@@ -455,112 +416,95 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Right 2/5 ──────────────────────────────────────────────────── */}
-          <div className="col-span-2 space-y-4">
+          {/* Col 2 row 1 — Transactions */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+            <SectionHeader
+              icon={<Clock className="w-4 h-4" />}
+              title="Transactions"
+              count={mockTransactions.length}
+              countColor="bg-orange-50 text-orange-600"
+              href="/transactions"
+            />
+            <div className="px-4 pb-4 space-y-2">
+              {mockTransactions.map((tx) => (
+                <button
+                  key={tx.id}
+                  onClick={() => setPanel({ kind: 'transaction', data: tx })}
+                  className="w-full text-left p-3.5 rounded-xl border border-gray-100 hover:border-[#1a6bcc]/40 hover:bg-blue-50/30 transition-all duration-100 group"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                    <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
+                      tx.daysUntilDeadline <= 1 ? 'bg-red-500' : tx.daysUntilDeadline <= 3 ? 'bg-amber-400' : 'bg-emerald-400'
+                    }`} />
+                    <p className="text-sm font-medium text-gray-800 flex-1 leading-tight line-clamp-1">{tx.address}</p>
+                    <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-[#1a6bcc] shrink-0 mt-0.5 transition-colors" />
+                  </div>
+                  <div className="flex items-center justify-between pl-4">
+                    <span className="text-xs text-gray-400">{tx.nextDeadlineLabel}</span>
+                    <UrgencyBadge days={tx.daysUntilDeadline} />
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
 
-            {/* Transactions */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-              <SectionHeader
-                icon={<Clock className="w-4 h-4" />}
-                title="Transactions"
-                count={mockTransactions.length}
-                countColor="bg-orange-50 text-orange-600"
-                href="/transactions"
-              />
-              <div className="px-4 pb-4 space-y-2">
-                {mockTransactions.map((tx) => (
-                  <button
-                    key={tx.id}
-                    onClick={() => setPanel({ kind: 'transaction', data: tx })}
-                    className="w-full text-left p-3.5 rounded-xl border border-gray-100 hover:border-[#1a6bcc]/40 hover:bg-blue-50/30 transition-all duration-100 group"
-                  >
-                    <div className="flex items-start justify-between gap-2 mb-1.5">
-                      <div
-                        className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
-                          tx.daysUntilDeadline <= 1
-                            ? 'bg-red-500'
-                            : tx.daysUntilDeadline <= 3
-                              ? 'bg-amber-400'
-                              : 'bg-emerald-400'
-                        }`}
-                      />
-                      <p className="text-sm font-medium text-gray-800 flex-1 leading-tight line-clamp-1">
-                        {tx.address}
-                      </p>
-                      <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-[#1a6bcc] shrink-0 mt-0.5 transition-colors" />
+          {/* Col 3 row 1 — Appointments + Hot Sheets */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+            <SectionHeader
+              icon={<CalendarDays className="w-4 h-4" />}
+              title="Appointments"
+              count={2}
+            />
+            <div className="px-4 pb-4 space-y-1.5">
+              {[
+                { name: 'Robert Nguyen', addr: '182 Saint Peter St', time: '11 AM' },
+                { name: 'Annette Black', addr: '26096 Dougherty Pl',  time: '2 PM'  },
+              ].map((a) => (
+                <div key={a.name} className="flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-gray-50 cursor-pointer">
+                  <div className="w-1 h-9 bg-[#1a6bcc] rounded-full shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800">{a.name}</p>
+                    <p className="text-xs text-gray-400 truncate">{a.addr}</p>
+                  </div>
+                  <span className="text-xs font-semibold text-[#1a6bcc] shrink-0">{a.time}</span>
+                </div>
+              ))}
+            </div>
+            <Separator />
+            <div className="px-4 pb-4 pt-3">
+              <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-3">Hot Sheets</p>
+              <div className="space-y-2">
+                {[
+                  { label: 'Upcoming Open House', count: 758, color: 'text-[#1a6bcc]'   },
+                  { label: 'Back on Market',       count: 20,  color: 'text-emerald-600' },
+                  { label: 'Price Reduced',         count: 120, color: 'text-amber-600'  },
+                ].map((s) => (
+                  <div key={s.label} className="flex items-center justify-between py-0.5 hover:bg-gray-50 rounded-lg px-2 cursor-pointer transition-colors">
+                    <div className="flex items-center gap-2">
+                      <Home className="w-3.5 h-3.5 text-gray-300" />
+                      <span className="text-sm text-gray-600">{s.label}</span>
                     </div>
-                    <div className="flex items-center justify-between pl-4">
-                      <span className="text-xs text-gray-400">{tx.nextDeadlineLabel}</span>
-                      <UrgencyBadge days={tx.daysUntilDeadline} />
-                    </div>
-                  </button>
+                    <span className={`text-sm font-bold ${s.color}`}>{s.count}</span>
+                  </div>
                 ))}
               </div>
             </div>
+          </div>
 
-            {/* Today's Tasks */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-              <SectionHeader
-                icon={<CheckCircle2 className="w-4 h-4" />}
-                title="Today's Tasks"
-                count={pendingTasks.length}
-                countColor="bg-violet-50 text-violet-600"
-              />
-              <div className="px-4 pb-2">
-                <div className="flex gap-2 mb-3">
-                  {(['call', 'text', 'email', 'other'] as const).map((type) => {
-                    const m = TASK_ICON_MAP[type]
-                    const count = mockTasks.filter((t) => t.type === type && !t.completed && !doneTaskIds.has(t.id)).length
-                    return (
-                      <div key={type} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl ${m.bg}`}>
-                        <m.icon className={`w-3 h-3 ${m.color}`} />
-                        <span className={`text-sm font-bold ${m.color}`}>{count}</span>
-                      </div>
-                    )
-                  })}
-                </div>
-                {mockTasks.map((task) => {
-                  const m = TASK_ICON_MAP[task.type]
-                  const lead = mockLeads.find((l) => l.id === task.leadId)
-                  const taskDone = task.completed || doneTaskIds.has(task.id)
-                  return (
-                    <div
-                      key={task.id}
-                      data-assistant-id={`task:${task.id}`}
-                      className={`flex items-center gap-3 px-2 py-2.5 rounded-xl ${
-                        taskDone ? 'opacity-35' : 'hover:bg-gray-50 cursor-pointer'
-                      }`}
-                    >
-                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${m.bg}`}>
-                        <m.icon className={`w-3.5 h-3.5 ${m.color}`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-gray-800 truncate font-medium">{task.title}</p>
-                        {lead && <p className="text-xs text-gray-400">{lead.name}</p>}
-                      </div>
-                      <span className="text-xs text-gray-400 shrink-0">{task.dueTime}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Keep in Touch */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-              <SectionHeader
-                icon={<Users className="w-4 h-4" />}
-                title="Keep in Touch"
-                count={3}
-                countColor="bg-amber-50 text-amber-600"
-              />
-              <div className="px-4 pb-4 space-y-1">
+          {/* Row 2 col 2+3 — Keep in Touch */}
+          <div className="col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm">
+            <SectionHeader
+              icon={<Users className="w-4 h-4" />}
+              title="Keep in Touch"
+              count={3}
+              countColor="bg-amber-50 text-amber-600"
+            />
+            <div className="px-4 pb-4 grid grid-cols-2 gap-x-6">
+              {/* Birthday column */}
+              <div className="space-y-1">
                 <div className="flex items-center justify-between px-2 py-1">
-                  <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">
-                    Birthday
-                  </span>
-                  <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
-                    8 this month
-                  </span>
+                  <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">Birthday</span>
+                  <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">8 this month</span>
                 </div>
                 {mockLeads.slice(0, 2).map((lead) => (
                   <button
@@ -573,18 +517,16 @@ export default function DashboardPage() {
                       <p className="text-sm font-medium text-gray-800">{lead.name}</p>
                       <p className="text-xs text-gray-400">Follow-up every 14 days</p>
                     </div>
-                    <span className="text-xs font-semibold text-amber-600">
-                      {lead.lastContactDaysAgo}d ago
-                    </span>
+                    <span className="text-xs font-semibold text-amber-600">{lead.lastContactDaysAgo}d ago</span>
                   </button>
                 ))}
-                <Separator className="my-2" />
-                <div className="flex items-center justify-between px-2 py-1">
-                  <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">
-                    Cooling down
-                  </span>
+              </div>
+              {/* Cooling Down column */}
+              <div className="space-y-1">
+                <div className="px-2 py-1">
+                  <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">Cooling down</span>
                 </div>
-                {coolingLeads.slice(0, 1).map((lead) => (
+                {coolingLeads.slice(0, 2).map((lead) => (
                   <button
                     key={lead.id}
                     onClick={() => setPanel({ kind: 'lead', data: lead })}
@@ -593,84 +535,18 @@ export default function DashboardPage() {
                     <Avatar name={lead.name} color="bg-gray-100 text-gray-500" size="sm" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-700">{lead.name}</p>
-                      <p className="text-xs text-gray-400">
-                        No contact in {lead.lastContactDaysAgo} days
-                      </p>
+                      <p className="text-xs text-gray-400">No contact in {lead.lastContactDaysAgo} days</p>
                     </div>
                     <span className="text-xs font-semibold text-red-500">Cooling</span>
                   </button>
                 ))}
               </div>
             </div>
-
-            {/* Appointments + Hot Sheets */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
-              <SectionHeader
-                icon={<CalendarDays className="w-4 h-4" />}
-                title="Appointments"
-                count={2}
-              />
-              <div className="px-4 pb-4 space-y-1.5">
-                {[
-                  { name: 'Robert Nguyen', addr: '182 Saint Peter St', time: '11 AM' },
-                  { name: 'Annette Black', addr: '26096 Dougherty Pl', time: '2 PM' },
-                ].map((a) => (
-                  <div
-                    key={a.name}
-                    className="flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-gray-50 cursor-pointer"
-                  >
-                    <div className="w-1 h-9 bg-[#1a6bcc] rounded-full shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800">{a.name}</p>
-                      <p className="text-xs text-gray-400 truncate">{a.addr}</p>
-                    </div>
-                    <span className="text-xs font-semibold text-[#1a6bcc] shrink-0">{a.time}</span>
-                  </div>
-                ))}
-              </div>
-              <Separator />
-              <div className="px-4 pb-4 pt-3">
-                <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-3">
-                  Hot Sheets
-                </p>
-                <div className="space-y-2">
-                  {[
-                    { label: 'Upcoming Open House', count: 758, color: 'text-[#1a6bcc]' },
-                    { label: 'Back on Market',       count: 20,  color: 'text-emerald-600' },
-                    { label: 'Price Reduced',         count: 120, color: 'text-amber-600'  },
-                  ].map((s) => (
-                    <div
-                      key={s.label}
-                      className="flex items-center justify-between py-0.5 hover:bg-gray-50 rounded-lg px-2 cursor-pointer transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Home className="w-3.5 h-3.5 text-gray-300" />
-                        <span className="text-sm text-gray-600">{s.label}</span>
-                      </div>
-                      <span className={`text-sm font-bold ${s.color}`}>{s.count}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
           </div>
+
         </div>
       </main>
 
-      {/* ── Voice Orb ─────────────────────────────────────────────────────── */}
-      <VoiceOrb
-        voiceState={voiceState}
-        onActivate={() => {
-          const nextAction = topActions[0]
-          speak(
-            nextAction
-              ? `You have ${pendingTasks.length} tasks remaining. Start with ${nextAction.title}.`
-              : `You have ${pendingTasks.length} tasks remaining today.`,
-            'todo-summary',
-          )
-        }}
-        onStop={stop}
-      />
 
       {/* ── Detail Panel ──────────────────────────────────────────────────── */}
       {panel && (
