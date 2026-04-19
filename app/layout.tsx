@@ -1,7 +1,9 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
+import { Suspense } from 'react'
 import './globals.css'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { AssistantWidget } from '@/components/assistant/AssistantWidget'
 
 const geistSans = Geist({ variable: '--font-sans', subsets: ['latin'] })
 const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] })
@@ -15,7 +17,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full`}>
       <body className="h-full antialiased">
-        <TooltipProvider>{children}</TooltipProvider>
+        <TooltipProvider>
+          {children}
+          <Suspense fallback={null}>
+            <AssistantWidget />
+          </Suspense>
+        </TooltipProvider>
       </body>
     </html>
   )

@@ -129,3 +129,12 @@
     @apply font-sans;
   }
 }
+
+.assistant-highlight {
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 0 0 3px rgba(26, 107, 204, 0.22), 0 14px 32px rgba(15, 23, 42, 0.12) !important;
+  border-color: rgba(26, 107, 204, 0.45) !important;
+  background-color: rgba(239, 246, 255, 0.72) !important;
+  transition: box-shadow 180ms ease, border-color 180ms ease, background-color 180ms ease;
+}

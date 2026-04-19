@@ -205,7 +205,10 @@ function LeadCard({ lead }: { lead: Lead }) {
   const nextAction = actions.find((action) => action.leadId === lead.id)
 
   return (
-    <div className="rounded-xl border border-gray-100 p-3.5 transition-colors hover:border-[#1a6bcc]/30 hover:bg-blue-50/30">
+    <div
+      data-assistant-id={`lead:${lead.id}`}
+      className="rounded-xl border border-gray-100 p-3.5 transition-colors hover:border-[#1a6bcc]/30 hover:bg-blue-50/30"
+    >
       <div className="mb-3 flex items-start gap-3">
         <LeadAvatar lead={lead} color="bg-rose-100 text-rose-600" />
         <div className="min-w-0 flex-1">
@@ -224,7 +227,10 @@ function LeadCard({ lead }: { lead: Lead }) {
         ))}
       </div>
       {nextAction && (
-        <div className="mt-3 rounded-lg bg-[#1a6bcc]/5 p-2.5">
+        <div
+          data-assistant-id={nextAction.propertyId ? `property:${nextAction.propertyId}` : undefined}
+          className="mt-3 rounded-lg bg-[#1a6bcc]/5 p-2.5"
+        >
           <p className="text-[10px] font-semibold uppercase tracking-wider text-[#1a6bcc]">
             Recommended
           </p>
@@ -239,7 +245,10 @@ function LeadRow({ lead }: { lead: Lead }) {
   const nextAction = actions.find((action) => action.leadId === lead.id)
 
   return (
-    <div className="grid grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr_1.4fr_0.2fr] items-center gap-3 border-t border-gray-100 px-4 py-3">
+    <div
+      data-assistant-id={`lead:${lead.id}`}
+      className="grid grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr_1.4fr_0.2fr] items-center gap-3 border-t border-gray-100 px-4 py-3"
+    >
       <div className="flex min-w-0 items-center gap-3">
         <LeadAvatar lead={lead} />
         <div className="min-w-0">
@@ -255,7 +264,10 @@ function LeadRow({ lead }: { lead: Lead }) {
       <span className={lead.lastContactDaysAgo >= 7 ? 'text-xs font-semibold text-rose-600' : 'text-xs text-gray-500'}>
         {lead.lastContactDaysAgo === 0 ? 'Today' : `${lead.lastContactDaysAgo}d ago`}
       </span>
-      <div className="min-w-0">
+      <div
+        data-assistant-id={nextAction?.propertyId ? `property:${nextAction.propertyId}` : undefined}
+        className="min-w-0"
+      >
         <p className="truncate text-xs font-medium text-gray-700">
           {nextAction?.title ?? 'Keep nurturing'}
         </p>

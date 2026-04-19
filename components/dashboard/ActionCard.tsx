@@ -73,6 +73,7 @@ export function ActionCard({
 
   return (
     <div
+      data-assistant-id={`action:${action.id}`}
       className={[
         'bg-white rounded-xl border-l-4 border border-gray-100 shadow-sm transition-all duration-150',
         urg.borderColor,

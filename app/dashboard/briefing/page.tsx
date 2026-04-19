@@ -24,6 +24,18 @@ const liveActions = generateRecommendedActions(
   mockTransactions,
 )
 
+function rememberCompletedAction(actionId: string) {
+  try {
+    const current = JSON.parse(window.localStorage.getItem('lofty:completedActions') ?? '[]') as string[]
+    window.localStorage.setItem(
+      'lofty:completedActions',
+      JSON.stringify(Array.from(new Set([...current, actionId])).slice(-10)),
+    )
+  } catch {
+    // Local storage is best-effort context for the assistant.
+  }
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function BriefingPage() {
@@ -35,6 +47,7 @@ export default function BriefingPage() {
   const markDone = useCallback(
     (action: RecommendedAction) => {
       setDoneIds(prev => new Set([...prev, action.id]))
+      rememberCompletedAction(action.id)
       if (selectedAction?.id === action.id) setSelectedAction(null)
       speak(getConfirmationScript(action), `confirm-${action.id}`)
     },

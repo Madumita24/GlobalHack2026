@@ -155,7 +155,10 @@ function TransactionCard({ transaction }: { transaction: Transaction }) {
   const soon = transaction.daysUntilDeadline <= 3
 
   return (
-    <div className="rounded-2xl border border-gray-100 p-4 transition-colors hover:border-[#1a6bcc]/30 hover:bg-blue-50/20">
+    <div
+      data-assistant-id={`transaction:${transaction.id}`}
+      className="rounded-2xl border border-gray-100 p-4 transition-colors hover:border-[#1a6bcc]/30 hover:bg-blue-50/20"
+    >
       <div className="mb-4 flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-3">
           <div

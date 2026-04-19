@@ -131,6 +131,18 @@ const TASK_ICON_MAP = {
   other: { icon: Tag,           color: 'text-gray-500',    bg: 'bg-gray-50'    },
 }
 
+function rememberCompletedAction(actionId: string) {
+  try {
+    const current = JSON.parse(window.localStorage.getItem('lofty:completedActions') ?? '[]') as string[]
+    window.localStorage.setItem(
+      'lofty:completedActions',
+      JSON.stringify(Array.from(new Set([...current, actionId])).slice(-10)),
+    )
+  } catch {
+    // Local storage is best-effort context for the assistant.
+  }
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -150,6 +162,7 @@ export default function DashboardPage() {
   const markDone = useCallback(
     (action: RecommendedAction) => {
       setDoneIds((prev) => new Set([...prev, action.id]))
+      rememberCompletedAction(action.id)
       speak(getConfirmationScript(action), `confirm-${action.id}`)
     },
     [speak],
@@ -200,13 +213,15 @@ export default function DashboardPage() {
       <main className="flex-1 overflow-y-auto px-6 py-5 min-w-0">
 
         {/* ── AI Briefing Hero ──────────────────────────────────────────── */}
-        <BriefingCard
-          agentName={agentProfile.name}
-          actions={topActions}
-          isSpeaking={voiceActiveId === 'briefing' && voiceState === 'playing'}
-          isLoading={voiceActiveId === 'briefing' && voiceState === 'loading'}
-          onHearBriefing={hearBriefing}
-        />
+        <div data-assistant-id="section:briefing">
+          <BriefingCard
+            agentName={agentProfile.name}
+            actions={topActions}
+            isSpeaking={voiceActiveId === 'briefing' && voiceState === 'playing'}
+            isLoading={voiceActiveId === 'briefing' && voiceState === 'loading'}
+            onHearBriefing={hearBriefing}
+          />
+        </div>
 
         {/* ── Stat Strip ────────────────────────────────────────────────── */}
         <div className="grid grid-cols-4 gap-3 mb-6">
@@ -265,7 +280,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ── AI Top Actions ─────────────────────────────────────────────── */}
-        <div className="mb-6">
+        <div className="mb-6" data-assistant-id="section:top-actions">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <Sparkles className="w-3.5 h-3.5 text-[#1a6bcc]" />
@@ -324,7 +339,7 @@ export default function DashboardPage() {
           <div className="col-span-3 space-y-4">
 
             {/* Today's Opportunities */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm" data-assistant-id="section:tasks">
               <SectionHeader
                 icon={<TrendingUp className="w-4 h-4" />}
                 title="Today's Opportunities"
@@ -475,6 +490,7 @@ export default function DashboardPage() {
                   return (
                     <div
                       key={task.id}
+                      data-assistant-id={`task:${task.id}`}
                       className={`flex items-center gap-3 px-2 py-2.5 rounded-xl ${
                         task.completed ? 'opacity-35' : 'hover:bg-gray-50 cursor-pointer'
                       }`}
