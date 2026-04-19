@@ -56,8 +56,6 @@ export function BriefingCard({ agentName, actions, isSpeaking = false, isLoading
   const [subtitleVisible, setSubtitleVisible] = useState(false)
 
   useEffect(() => {
-    setDisplayed('')
-    setSubtitleVisible(false)
     let i = 0
     const timer = setInterval(() => {
       i++

@@ -4,6 +4,7 @@ import { Suspense } from 'react'
 import './globals.css'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AssistantProvider, AssistantWidget } from '@/components/assistant/AssistantWidget'
+import AppDataProvider from '@/components/data/AppDataProvider'
 
 const geistSans = Geist({ variable: '--font-sans', subsets: ['latin'] })
 const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] })
@@ -19,10 +20,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="h-full antialiased">
         <TooltipProvider>
           <AssistantProvider>
-            {children}
-            <Suspense fallback={null}>
-              <AssistantWidget />
-            </Suspense>
+            <AppDataProvider>
+              {children}
+              <Suspense fallback={null}>
+                <AssistantWidget />
+              </Suspense>
+            </AppDataProvider>
           </AssistantProvider>
         </TooltipProvider>
       </body>

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { buildMailtoHref, buildSmsHref, buildTelHref, defaultLeadMessage, listingMessage } from '@/lib/contact-links'
 import type { RecommendedAction, Transaction } from '@/types/action'
 import type { Lead } from '@/types/lead'
 import type { Property } from '@/types/property'
@@ -62,12 +63,12 @@ const ACTION_META: Record<
     done: 'Text sent and logged.',
   },
   email: {
-    label: 'Draft Email',
+    label: 'Send Email',
     icon: Mail,
     accent: 'text-emerald-600',
     bg: 'bg-emerald-50',
-    primary: 'Save Email Draft',
-    done: 'Email draft prepared.',
+    primary: 'Send Email',
+    done: 'Email sent and logged.',
   },
   send_listing: {
     label: 'Send Listing',
@@ -75,7 +76,7 @@ const ACTION_META: Record<
     accent: 'text-[#1a6bcc]',
     bg: 'bg-blue-50',
     primary: 'Send Now',
-    done: 'Listing message drafted.',
+    done: 'Listing email sent and logged.',
   },
   review_transaction: {
     label: 'Review Transaction',
@@ -105,6 +106,7 @@ export function ActionExecutionDialog({
   onConfirm,
 }: ActionExecutionDialogProps) {
   const [phase, setPhase] = useState<ExecutionPhase>('review')
+  const [error, setError] = useState<string | null>(null)
 
   const talkingPoints = useMemo(() => {
     if (!action) return []
@@ -120,14 +122,46 @@ export function ActionExecutionDialog({
   const Icon = meta.icon
   const isBusy = phase === 'executing'
   const isDone = phase === 'done'
+  const sendsEmail = isEmailDeliveryAction(action)
 
-  function handleConfirm() {
+  async function handleConfirm() {
     if (!action || isBusy || isDone) return
+    setError(null)
     setPhase('executing')
-    window.setTimeout(() => {
+
+    try {
+      if (isEmailDeliveryAction(action)) {
+        const emailPayload = buildExecutionEmailPayload(action, lead, property)
+
+        if (!emailPayload) {
+          throw new Error('This action needs a lead email before it can be sent.')
+        }
+
+        const response = await fetch('/api/email/send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ...emailPayload,
+            actionId: action.id,
+          }),
+        })
+        const result = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null
+
+        if (!response.ok || !result?.ok) {
+          throw new Error(result?.error ?? 'Email could not be sent through SES.')
+        }
+      } else {
+        await new Promise((resolve) => window.setTimeout(resolve, 450))
+      }
+
       onConfirm(action)
       setPhase('done')
-    }, 450)
+    } catch (sendError) {
+      setError(sendError instanceof Error ? sendError.message : 'The action could not be completed.')
+      setPhase('review')
+    }
   }
 
   function handleClose() {
@@ -202,6 +236,16 @@ export function ActionExecutionDialog({
                   path used by the briefing controls.
                 </p>
               </div>
+
+              {error && (
+                <div className="rounded-xl border border-red-100 bg-red-50 p-3">
+                  <div className="mb-1.5 flex items-center gap-2">
+                    <AlertTriangle className="h-3.5 w-3.5 text-red-600" />
+                    <p className="text-xs font-semibold text-red-700">Could not complete action</p>
+                  </div>
+                  <p className="text-xs leading-relaxed text-red-600">{error}</p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -235,7 +279,7 @@ export function ActionExecutionDialog({
                 {isBusy ? (
                   <>
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Completing...
+                    {sendsEmail ? 'Sending...' : 'Completing...'}
                   </>
                 ) : (
                   <>
@@ -316,6 +360,14 @@ function ExecutionBody({
                 )}
               </div>
               <DraftMessage message={action.draftMessage} />
+              {lead && (
+                <ContactLaunchers
+                  lead={lead}
+                  subject={property ? `Listing match: ${property.address}` : action.title}
+                  message={property ? listingMessage(lead, property) : action.draftMessage}
+                  includeCall={false}
+                />
+              )}
             </div>
           ) : (
             <MissingState label="property" />
@@ -335,6 +387,13 @@ function ExecutionBody({
             <PayloadRow label="Suggested time" value={action.scheduledFor ?? 'Tomorrow at 10:00 AM'} highlight />
             <PayloadRow label="Note" value="Create a first-touch reminder with the recommended opening message." />
             <DraftMessage message={action.draftMessage} />
+            {lead && (
+              <ContactLaunchers
+                lead={lead}
+                subject={action.title}
+                message={action.draftMessage}
+              />
+            )}
           </div>
         </PayloadSection>
         <ReasonList items={talkingPoints} />
@@ -347,6 +406,14 @@ function ExecutionBody({
       <PayloadSection title={action.type === 'call' ? 'Call payload' : 'Message payload'}>
         <div className="space-y-3">
           {lead ? <LeadSummary lead={lead} /> : <MissingState label="lead" />}
+          {lead && (
+            <ContactLaunchers
+              lead={lead}
+              subject={action.title}
+              message={action.draftMessage}
+              includeCall={action.type === 'call'}
+            />
+          )}
           {action.type === 'call' ? (
             <>
               <div className="rounded-xl bg-gray-50 p-3">
@@ -430,6 +497,80 @@ function DraftMessage({ message }: { message?: string }) {
       </p>
     </div>
   )
+}
+
+function ContactLaunchers({
+  lead,
+  subject,
+  message,
+  includeCall = true,
+}: {
+  lead: Lead
+  subject: string
+  message?: string
+  includeCall?: boolean
+}) {
+  const body = message ?? defaultLeadMessage(lead)
+
+  return (
+    <div className={`grid gap-2 ${includeCall ? 'grid-cols-3' : 'grid-cols-2'}`}>
+      {includeCall && (
+        <a
+          href={buildTelHref(lead.phone)}
+          className="flex items-center justify-center gap-1.5 rounded-lg bg-blue-50 px-2 py-2 text-xs font-semibold text-blue-600 transition-colors hover:bg-blue-100"
+        >
+          <Phone className="h-3.5 w-3.5" />
+          Call
+        </a>
+      )}
+      <a
+        href={buildSmsHref(lead, body)}
+        className="flex items-center justify-center gap-1.5 rounded-lg bg-violet-50 px-2 py-2 text-xs font-semibold text-violet-600 transition-colors hover:bg-violet-100"
+      >
+        <MessageSquare className="h-3.5 w-3.5" />
+        Text
+      </a>
+      <a
+        href={buildMailtoHref(lead, subject, body)}
+        className="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-50 px-2 py-2 text-xs font-semibold text-emerald-600 transition-colors hover:bg-emerald-100"
+      >
+        <Mail className="h-3.5 w-3.5" />
+        Email
+      </a>
+    </div>
+  )
+}
+
+function isEmailDeliveryAction(action: RecommendedAction) {
+  return action.type === 'email' || action.type === 'send_listing'
+}
+
+function buildExecutionEmailPayload(
+  action: RecommendedAction,
+  lead?: Lead | null,
+  property?: Property | null,
+) {
+  if (!lead?.email) return null
+
+  if (action.type === 'send_listing') {
+    return {
+      to: lead.email,
+      recipientName: lead.name,
+      subject: property ? `Listing match: ${property.address}` : action.title,
+      body: property ? listingMessage(lead, property) : action.draftMessage ?? defaultLeadMessage(lead),
+    }
+  }
+
+  if (action.type === 'email') {
+    return {
+      to: lead.email,
+      recipientName: lead.name,
+      subject: action.title,
+      body: action.draftMessage ?? defaultLeadMessage(lead),
+    }
+  }
+
+  return null
 }
 
 function ReasonList({ items }: { items: string[] }) {

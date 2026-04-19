@@ -1,3 +1,5 @@
+'use client'
+
 import Link from 'next/link'
 import {
   ArrowLeft,
@@ -15,23 +17,19 @@ import {
 import AppShell from '@/components/layout/AppShell'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { mockEvents, mockLeads, mockProperties, mockTransactions } from '@/lib/mock-data'
-import { generateRecommendedActions } from '@/lib/scoring'
+import { useAppData } from '@/components/data/AppDataProvider'
+import { buildMailtoHref, buildSmsHref, buildTelHref, defaultLeadMessage } from '@/lib/contact-links'
 import type { Lead } from '@/types/lead'
 
-const actions = generateRecommendedActions(
-  mockLeads,
-  mockProperties,
-  mockEvents,
-  mockTransactions,
-)
-
-const hotLeads = mockLeads.filter((lead) => lead.stage === 'hot' || lead.score >= 70)
-const backToSite = mockLeads.filter((lead) => lead.intentSignals.includes('back_to_site'))
-const coolingLeads = mockLeads.filter((lead) => lead.lastContactDaysAgo >= 14)
-const newLeads = mockLeads.filter((lead) => lead.stage === 'new' || lead.lastContactDaysAgo === 0)
-
 export default function PeoplePage() {
+  const { data } = useAppData()
+  const mockLeads = data.leads
+  const mockProperties = data.properties
+  const hotLeads = mockLeads.filter((lead) => lead.stage === 'hot' || lead.score >= 70)
+  const backToSite = mockLeads.filter((lead) => lead.intentSignals.includes('back_to_site'))
+  const coolingLeads = mockLeads.filter((lead) => lead.lastContactDaysAgo >= 14)
+  const newLeads = mockLeads.filter((lead) => lead.stage === 'new' || lead.lastContactDaysAgo === 0)
+
   return (
     <AppShell>
       <main className="min-w-0 flex-1 overflow-y-auto px-6 py-5">
@@ -205,6 +203,8 @@ function SectionTitle({
 }
 
 function LeadCard({ lead }: { lead: Lead }) {
+  const { data } = useAppData()
+  const actions = data.actions
   const nextAction = actions.find((action) => action.leadId === lead.id)
 
   return (
@@ -231,15 +231,24 @@ function LeadCard({ lead }: { lead: Lead }) {
       </div>
       {/* Quick-action toolbar — reveals on hover */}
       <div className="mt-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
-        <button className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-600 text-[11px] font-semibold hover:bg-blue-100 transition-colors">
+        <a
+          href={buildTelHref(lead.phone)}
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-600 text-[11px] font-semibold hover:bg-blue-100 transition-colors"
+        >
           <Phone className="w-3 h-3" /> Call
-        </button>
-        <button className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-violet-50 text-violet-600 text-[11px] font-semibold hover:bg-violet-100 transition-colors">
+        </a>
+        <a
+          href={buildSmsHref(lead, defaultLeadMessage(lead))}
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-violet-50 text-violet-600 text-[11px] font-semibold hover:bg-violet-100 transition-colors"
+        >
           <MessageSquare className="w-3 h-3" /> Text
-        </button>
-        <button className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 text-[11px] font-semibold hover:bg-emerald-100 transition-colors">
+        </a>
+        <a
+          href={buildMailtoHref(lead, `Following up, ${lead.name}`, defaultLeadMessage(lead))}
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 text-[11px] font-semibold hover:bg-emerald-100 transition-colors"
+        >
           <Mail className="w-3 h-3" /> Email
-        </button>
+        </a>
       </div>
       {nextAction && (
         <div
@@ -255,6 +264,8 @@ function LeadCard({ lead }: { lead: Lead }) {
 }
 
 function LeadRow({ lead }: { lead: Lead }) {
+  const { data } = useAppData()
+  const actions = data.actions
   const nextAction = actions.find((action) => action.leadId === lead.id)
 
   return (

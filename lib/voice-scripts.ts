@@ -70,7 +70,7 @@ export function getConfirmationScript(action: RecommendedAction): string {
   const scripts: Record<RecommendedAction['type'], string> = {
     call:               'Call task marked complete. Great work.',
     text:               'Text sent and logged. Moving right along.',
-    email:              'Email drafted and marked complete.',
+    email:              'Email sent and logged. Moving right along.',
     send_listing:       'Listing sent. Activity logged in your pipeline.',
     review_transaction: 'Transaction reviewed and checked off.',
     schedule_followup:  "Follow-up scheduled. I'll keep track of it.",

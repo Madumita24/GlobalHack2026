@@ -8,20 +8,10 @@ import DetailPanel from '@/components/layout/DetailPanel'
 import { BriefingCard } from '@/components/dashboard/BriefingCard'
 import { ActionCard } from '@/components/dashboard/ActionCard'
 import { ActionExecutionDialog } from '@/components/dashboard/ActionExecutionDialog'
-import { generateRecommendedActions } from '@/lib/scoring'
-import { mockLeads, mockProperties, mockEvents, mockTransactions } from '@/lib/mock-data'
+import { useAppData } from '@/components/data/AppDataProvider'
 import { useVoice } from '@/hooks/useVoice'
 import { getBriefingScript, getActionScript, getConfirmationScript } from '@/lib/voice-scripts'
 import type { RecommendedAction } from '@/types/action'
-
-// ── Live scoring engine ───────────────────────────────────────────────────────
-
-const liveActions = generateRecommendedActions(
-  mockLeads,
-  mockProperties,
-  mockEvents,
-  mockTransactions,
-)
 
 function rememberCompletedAction(actionId: string) {
   try {
@@ -35,9 +25,22 @@ function rememberCompletedAction(actionId: string) {
   }
 }
 
+function persistCompletedAction(actionId: string) {
+  fetch(`/api/actions/${encodeURIComponent(actionId)}/complete`, {
+    method: 'POST',
+  }).catch((error) => {
+    console.error('[Briefing] Could not persist completed action:', error)
+  })
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function BriefingPage() {
+  const { data } = useAppData()
+  const mockLeads = data.leads
+  const mockProperties = data.properties
+  const mockTransactions = data.transactions
+  const liveActions = data.actions
   const [selectedAction, setSelectedAction] = useState<RecommendedAction | null>(null)
   const [executionAction, setExecutionAction] = useState<RecommendedAction | null>(null)
   const [doneIds, setDoneIds] = useState<Set<string>>(new Set())
@@ -47,6 +50,7 @@ export default function BriefingPage() {
     (action: RecommendedAction) => {
       setDoneIds(prev => new Set([...prev, action.id]))
       rememberCompletedAction(action.id)
+      persistCompletedAction(action.id)
       if (selectedAction?.id === action.id) setSelectedAction(null)
       speak(getConfirmationScript(action), `confirm-${action.id}`)
     },
@@ -87,7 +91,7 @@ export default function BriefingPage() {
 
   const handleHearBriefing = useCallback(() => {
     speak(getBriefingScript('James Carter', liveActions), 'briefing')
-  }, [speak])
+  }, [liveActions, speak])
 
   const handleHearAction = useCallback(
     (action: RecommendedAction) => {
@@ -95,7 +99,7 @@ export default function BriefingPage() {
       const actionProperty = action.propertyId ? mockProperties.find(p => p.id === action.propertyId) : null
       speak(getActionScript(action, actionLead, actionProperty), `action-${action.id}`)
     },
-    [speak],
+    [mockLeads, mockProperties, speak],
   )
 
   return (

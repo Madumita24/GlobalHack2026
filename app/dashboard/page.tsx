@@ -10,19 +10,10 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { mockLeads, mockTransactions, mockTasks, mockProperties, mockEvents, mockAppointments } from '@/lib/mock-data'
-import { generateRecommendedActions } from '@/lib/scoring'
+import { useAppData } from '@/components/data/AppDataProvider'
+import { buildMailtoHref, buildSmsHref, buildTelHref, defaultLeadMessage, listingMessage } from '@/lib/contact-links'
 import type { Lead } from '@/types/lead'
 import type { RecommendedAction, Task, Transaction } from '@/types/action'
-
-// ── Scoring engine — deterministic, called once at render ────────────────────
-
-const topActions = generateRecommendedActions(
-  mockLeads,
-  mockProperties,
-  mockEvents,
-  mockTransactions,
-)
 
 // ── Panel state type ─────────────────────────────────────────────────────────
 
@@ -138,6 +129,8 @@ function TodayTodoPanel({
   nextAction: RecommendedAction | null
   onToggleTask: (taskId: string) => void
 }) {
+  const { data } = useAppData()
+  const leads = data.leads
   const incompleteTasks = tasks.filter((task) => !task.completed && !doneTaskIds.has(task.id))
   const completedCount = tasks.filter((task) => task.completed || doneTaskIds.has(task.id)).length
   const progress = tasks.length === 0 ? 0 : Math.round((completedCount / tasks.length) * 100)
@@ -204,7 +197,7 @@ function TodayTodoPanel({
             {tasks.slice(0, 4).map((task) => {
               const m = TASK_ICON_MAP[task.type]
               const Icon = m.icon
-              const lead = task.leadId ? mockLeads.find((item) => item.id === task.leadId) : null
+              const lead = task.leadId ? leads.find((item) => item.id === task.leadId) : null
               const done = task.completed || doneTaskIds.has(task.id)
 
               const ActionIcon = task.type === 'call' ? Phone : task.type === 'text' ? MessageSquare : task.type === 'email' ? Mail : null
@@ -287,6 +280,13 @@ function TodayTodoPanel({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const { data } = useAppData()
+  const mockLeads = data.leads
+  const mockProperties = data.properties
+  const mockTransactions = data.transactions
+  const mockTasks = data.tasks
+  const mockAppointments = data.appointments
+  const topActions = data.actions
   const [panel, setPanel] = useState<PanelContent>(null)
   const [doneTaskIds, setDoneTaskIds] = useState<Set<string>>(new Set())
 
@@ -643,6 +643,8 @@ export default function DashboardPage() {
 // ── Lead Detail Panel ─────────────────────────────────────────────────────────
 
 function LeadDetailPanel({ lead }: { lead: Lead }) {
+  const { data } = useAppData()
+  const mockProperties = data.properties
   const matchedProperty =
     mockProperties.find(
       (p) =>
@@ -667,19 +669,27 @@ function LeadDetailPanel({ lead }: { lead: Lead }) {
       </div>
 
       <div className="grid grid-cols-3 gap-2">
-        {[
-          { icon: Phone,         label: 'Call',  color: 'bg-blue-600 hover:bg-blue-700'    },
-          { icon: MessageSquare, label: 'Text',  color: 'bg-violet-600 hover:bg-violet-700' },
-          { icon: Mail,          label: 'Email', color: 'bg-emerald-600 hover:bg-emerald-700' },
-        ].map((a) => (
-          <button
-            key={a.label}
-            className={`${a.color} text-white rounded-xl py-2 flex flex-col items-center gap-1 transition-colors`}
-          >
-            <a.icon className="w-4 h-4" />
-            <span className="text-xs font-medium">{a.label}</span>
-          </button>
-        ))}
+        <a
+          href={buildTelHref(lead.phone)}
+          className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-2 flex flex-col items-center gap-1 transition-colors"
+        >
+          <Phone className="w-4 h-4" />
+          <span className="text-xs font-medium">Call</span>
+        </a>
+        <a
+          href={buildSmsHref(lead, defaultLeadMessage(lead))}
+          className="bg-violet-600 hover:bg-violet-700 text-white rounded-xl py-2 flex flex-col items-center gap-1 transition-colors"
+        >
+          <MessageSquare className="w-4 h-4" />
+          <span className="text-xs font-medium">Text</span>
+        </a>
+        <a
+          href={buildMailtoHref(lead, `Following up, ${lead.name}`, defaultLeadMessage(lead))}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-2 flex flex-col items-center gap-1 transition-colors"
+        >
+          <Mail className="w-4 h-4" />
+          <span className="text-xs font-medium">Email</span>
+        </a>
       </div>
 
       <div className="space-y-2">
@@ -730,12 +740,12 @@ function LeadDetailPanel({ lead }: { lead: Lead }) {
               Back on Market
             </Badge>
           )}
-          <Button
-            size="sm"
-            className="w-full mt-3 h-7 text-xs bg-[#1a6bcc] hover:bg-[#1558a8] text-white border-0 gap-1"
+          <a
+            href={buildMailtoHref(lead, `Listing match: ${matchedProperty.address}`, listingMessage(lead, matchedProperty))}
+            className="w-full mt-3 h-7 text-xs bg-[#1a6bcc] hover:bg-[#1558a8] text-white border-0 gap-1 inline-flex items-center justify-center rounded-lg font-medium transition-colors"
           >
             <Send className="w-3 h-3" /> Send This Listing
-          </Button>
+          </a>
         </div>
       )}
     </>
@@ -812,9 +822,10 @@ function TransactionDetailPanel({ tx }: { tx: Transaction }) {
 // ── Action Reasoning Panel ────────────────────────────────────────────────────
 
 function ActionReasoningPanel({ action }: { action: RecommendedAction }) {
-  const lead     = action.leadId       ? mockLeads.find((l) => l.id === action.leadId)          : null
-  const property = action.propertyId   ? mockProperties.find((p) => p.id === action.propertyId) : null
-  const tx       = action.transactionId ? mockTransactions.find((t) => t.id === action.transactionId) : null
+  const { data } = useAppData()
+  const lead     = action.leadId       ? data.leads.find((l) => l.id === action.leadId)          : null
+  const property = action.propertyId   ? data.properties.find((p) => p.id === action.propertyId) : null
+  const tx       = action.transactionId ? data.transactions.find((t) => t.id === action.transactionId) : null
   const confidence = Math.round(action.confidence)
 
   return (

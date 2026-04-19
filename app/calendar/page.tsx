@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import AppShell from '@/components/layout/AppShell'
 import { Badge } from '@/components/ui/badge'
-import { mockLeads, mockTasks, mockTransactions } from '@/lib/mock-data'
+import { useAppData } from '@/components/data/AppDataProvider'
 import type { Task } from '@/types/action'
 
 type CalendarView = 'day' | 'week' | 'month'
@@ -79,8 +79,12 @@ const appointments: CalendarEvent[] = [
 ]
 
 export default function CalendarPage() {
+  const { data } = useAppData()
   const [view, setView] = useState<CalendarView>('day')
-  const calendar = useMemo(() => buildCalendarEvents(), [])
+  const calendar = useMemo(
+    () => buildCalendarEvents(data.tasks, data.leads, data.transactions),
+    [data.leads, data.tasks, data.transactions],
+  )
   const conflicts = calendar.filter((event) => event.conflict || event.outsideAvailability)
   const taskEvents = calendar.filter((event) => event.source === 'task')
 
@@ -193,9 +197,13 @@ export default function CalendarPage() {
   )
 }
 
-function buildCalendarEvents(): CalendarEvent[] {
-  const taskEvents: CalendarEvent[] = mockTasks.map((task, index) => {
-    const lead = task.leadId ? mockLeads.find((item) => item.id === task.leadId) : null
+function buildCalendarEvents(
+  tasks: Task[],
+  leads: { id: string; name: string }[],
+  transactions: { id: string; address: string; daysUntilDeadline: number; nextDeadlineLabel: string }[],
+): CalendarEvent[] {
+  const taskEvents: CalendarEvent[] = tasks.map((task, index) => {
+    const lead = task.leadId ? leads.find((item) => item.id === task.leadId) : null
     const start = resolveTaskStart(task, index)
     return {
       id: `task:${task.id}`,
@@ -213,7 +221,7 @@ function buildCalendarEvents(): CalendarEvent[] {
     }
   })
 
-  const deadlineEvents: CalendarEvent[] = mockTransactions
+  const deadlineEvents: CalendarEvent[] = transactions
     .filter((tx) => tx.daysUntilDeadline <= 2)
     .map((tx) => ({
       id: `deadline:${tx.id}`,

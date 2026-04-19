@@ -1,6 +1,11 @@
-import { mockEvents, mockLeads, mockProperties, mockTasks, mockTransactions } from '@/lib/mock-data'
-import { generateRecommendedActions } from '@/lib/scoring'
-import type { AssistantDecision, AssistantIntent, AssistantRequest } from '@/types/assistant'
+import { getAppData } from '@/lib/data/app-data'
+import type { AppData } from '@/types/app-data'
+import type {
+  AssistantCommunication,
+  AssistantDecision,
+  AssistantIntent,
+  AssistantRequest,
+} from '@/types/assistant'
 
 const VALID_INTENTS: AssistantIntent[] = [
   'navigate_dashboard',
@@ -15,6 +20,8 @@ const VALID_INTENTS: AssistantIntent[] = [
   'highlight_top_lead',
   'highlight_urgent_task',
   'explain_action',
+  'send_email',
+  'send_text_message',
   'general_question',
   'clarification_request',
 ]
@@ -32,6 +39,7 @@ const assistantResponseSchema = {
     'voiceResponse',
     'confidence',
     'clarificationQuestion',
+    'communication',
   ],
   properties: {
     intent: { type: 'string', enum: VALID_INTENTS },
@@ -46,35 +54,52 @@ const assistantResponseSchema = {
     voiceResponse: { type: 'string' },
     confidence: { type: 'number', minimum: 0, maximum: 1 },
     clarificationQuestion: { type: ['string', 'null'] },
+    communication: {
+      anyOf: [
+        { type: 'null' },
+        {
+          type: 'object',
+          additionalProperties: false,
+          required: [
+            'channel',
+            'leadId',
+            'recipientName',
+            'recipientEmail',
+            'recipientPhone',
+            'subject',
+            'body',
+            'deliveryStatus',
+            'messageId',
+            'launchHref',
+            'error',
+          ],
+          properties: {
+            channel: { type: 'string', enum: ['email', 'sms'] },
+            leadId: { type: 'string' },
+            recipientName: { type: 'string' },
+            recipientEmail: { type: ['string', 'null'] },
+            recipientPhone: { type: ['string', 'null'] },
+            subject: { type: ['string', 'null'] },
+            body: { type: 'string' },
+            deliveryStatus: { type: 'string', enum: ['pending', 'accepted', 'sent', 'failed'] },
+            messageId: { type: ['string', 'null'] },
+            launchHref: { type: ['string', 'null'] },
+            error: { type: ['string', 'null'] },
+          },
+        },
+      ],
+    },
   },
 } as const
 
-const actions = generateRecommendedActions(
-  mockLeads,
-  mockProperties,
-  mockEvents,
-  mockTransactions,
-)
-
-const topAction = actions[0] ?? null
-const topLeadAction = actions.find((action) => action.leadId) ?? null
-const topLead = topLeadAction?.leadId
-  ? mockLeads.find((lead) => lead.id === topLeadAction.leadId) ?? highestScoreLead()
-  : highestScoreLead()
-const topListingAction = actions.find((action) => action.type === 'send_listing' && action.propertyId) ?? null
-const hottestProperty = topListingAction?.propertyId
-  ? mockProperties.find((property) => property.id === topListingAction.propertyId) ?? null
-  : null
-const urgentTransaction =
-  [...mockTransactions].sort((a, b) => a.daysUntilDeadline - b.daysUntilDeadline)[0] ?? null
-const urgentTask = mockTasks.find((task) => !task.completed) ?? null
-
 export async function getAssistantDecision(request: AssistantRequest): Promise<AssistantDecision> {
+  const appData = await getAppData()
+  const assistantContext = getAssistantContext(appData)
   const normalizedMessage = request.message.trim()
-  if (!normalizedMessage) return fallbackDecision(request)
+  if (!normalizedMessage) return fallbackDecision(request, assistantContext)
 
   const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) return fallbackDecision(request)
+  if (!apiKey) return fallbackDecision(request, assistantContext)
 
   try {
     const response = await fetch('https://api.openai.com/v1/responses', {
@@ -96,7 +121,7 @@ export async function getAssistantDecision(request: AssistantRequest): Promise<A
               request: normalizedMessage,
               currentPath: request.currentPath,
               recentExecutedActionIds: request.recentExecutedActionIds ?? [],
-              context: getAssistantContext(),
+              context: assistantContext,
             }),
           },
         ],
@@ -113,21 +138,35 @@ export async function getAssistantDecision(request: AssistantRequest): Promise<A
 
     if (!response.ok) {
       console.error('[Assistant] OpenAI error:', await response.text().catch(() => response.statusText))
-      return fallbackDecision(request)
+      return fallbackDecision(request, assistantContext)
     }
 
     const data = await response.json()
     const output = extractResponseText(data)
-    if (!output) return fallbackDecision(request)
+    if (!output) return fallbackDecision(request, assistantContext)
 
     return withRequestDefaults(normalizeDecision(JSON.parse(output)), request.message)
   } catch (error) {
     console.error('[Assistant] decision error:', error)
-    return fallbackDecision(request)
+    return fallbackDecision(request, assistantContext)
   }
 }
 
-export function getAssistantContext() {
+export function getAssistantContext(data: AppData) {
+  const actions = data.actions
+  const topAction = actions[0] ?? null
+  const topLeadAction = actions.find((action) => action.leadId) ?? null
+  const topLead = topLeadAction?.leadId
+    ? data.leads.find((lead) => lead.id === topLeadAction.leadId) ?? highestScoreLead(data)
+    : highestScoreLead(data)
+  const topListingAction = actions.find((action) => action.type === 'send_listing' && action.propertyId) ?? null
+  const hottestProperty = topListingAction?.propertyId
+    ? data.properties.find((property) => property.id === topListingAction.propertyId) ?? null
+    : null
+  const urgentTransaction =
+    [...data.transactions].sort((a, b) => a.daysUntilDeadline - b.daysUntilDeadline)[0] ?? null
+  const urgentTask = data.tasks.find((task) => !task.completed) ?? null
+
   return {
     routes: VALID_ROUTES,
     calendar: {
@@ -184,21 +223,23 @@ export function getAssistantContext() {
           highlightId: `task:${urgentTask.id}`,
         }
       : null,
-    leads: mockLeads.map((lead) => ({
+    leads: data.leads.map((lead) => ({
       id: lead.id,
       name: lead.name,
+      email: lead.email,
+      phone: lead.phone,
       score: lead.score,
       route: '/people',
       highlightId: `lead:${lead.id}`,
     })),
-    properties: mockProperties.map((property) => ({
+    properties: data.properties.map((property) => ({
       id: property.id,
       address: property.address,
       city: property.city,
       route: '/people',
       highlightId: `property:${property.id}`,
     })),
-    transactions: mockTransactions.map((transaction) => ({
+    transactions: data.transactions.map((transaction) => ({
       id: transaction.id,
       address: transaction.address,
       route: '/transactions',
@@ -213,26 +254,36 @@ function buildSystemPrompt() {
     'Return valid JSON only. No markdown, no prose outside the JSON.',
     'Use only the provided routes, ids, and records. Do not fabricate records.',
     'If the request is ambiguous, use intent clarification_request, no targetRoute, no targetId, highlight false, and include a short clarificationQuestion.',
+    'For requests to email or mail a lead, use intent send_email and include communication with channel email, the matching lead id, recipient details, a concise subject, and the exact body to send.',
+    'For requests to text, SMS, or message a lead, use intent send_text_message and include communication with channel sms, the matching lead id, recipient details, no subject, and the exact text body. SMS is sent by the server through AWS SNS.',
+    'If a communication request does not clearly name a provided lead, ask a clarification question.',
+    'If a communication request does not provide message wording, create a short professional real estate follow-up using the lead context.',
     'Prefer the most useful page for the user request: top leads go to /people, calendar/schedule/free-time/conflict questions go to /calendar, urgent transactions go to /transactions, top actions and tasks go to /dashboard, the full action plan goes to /dashboard/briefing.',
     'voiceResponse should be warm, concise, and confident, suitable for spoken playback.',
   ].join(' ')
 }
 
-function fallbackDecision(request: AssistantRequest): AssistantDecision {
+function fallbackDecision(
+  request: AssistantRequest,
+  context: ReturnType<typeof getAssistantContext>,
+): AssistantDecision {
   const text = request.message.toLowerCase()
+  const communicationDecision = fallbackCommunicationDecision(request.message, context)
+  if (communicationDecision) return communicationDecision
 
   if (matches(text, ['lead', 'leads', 'people', 'crm'])) {
     if (matches(text, ['top', 'best', 'highest', 'priority'])) {
       return {
         intent: 'highlight_top_lead',
         targetRoute: '/people',
-        targetId: topLead ? `lead:${topLead.id}` : null,
-        highlight: !!topLead,
-        voiceResponse: topLead
-          ? `Here is your top lead. I highlighted ${topLead.name} for you.`
+        targetId: context.topLead?.highlightId ?? null,
+        highlight: !!context.topLead,
+        voiceResponse: context.topLead
+          ? `Here is your top lead. I highlighted ${context.topLead.name} for you.`
           : 'I opened your leads page.',
         confidence: 0.9,
         clarificationQuestion: null,
+        communication: null,
       }
     }
     return {
@@ -243,6 +294,7 @@ function fallbackDecision(request: AssistantRequest): AssistantDecision {
       voiceResponse: 'Here is your leads page.',
       confidence: 0.86,
       clarificationQuestion: null,
+      communication: null,
     }
   }
 
@@ -250,13 +302,14 @@ function fallbackDecision(request: AssistantRequest): AssistantDecision {
     return {
       intent: 'open_transaction_detail',
       targetRoute: '/transactions',
-      targetId: urgentTransaction ? `transaction:${urgentTransaction.id}` : null,
-      highlight: !!urgentTransaction,
-      voiceResponse: urgentTransaction
+      targetId: context.urgentTransaction?.highlightId ?? null,
+      highlight: !!context.urgentTransaction,
+      voiceResponse: context.urgentTransaction
         ? 'This is the transaction that needs attention today.'
         : 'I opened your transactions page.',
       confidence: 0.9,
       clarificationQuestion: null,
+      communication: null,
     }
   }
 
@@ -273,6 +326,7 @@ function fallbackDecision(request: AssistantRequest): AssistantDecision {
         : 'I opened your CRM calendar with AI-added tasks.',
       confidence: 0.88,
       clarificationQuestion: null,
+      communication: null,
     }
   }
 
@@ -280,13 +334,14 @@ function fallbackDecision(request: AssistantRequest): AssistantDecision {
     return {
       intent: 'open_property_detail',
       targetRoute: '/people',
-      targetId: hottestProperty ? `property:${hottestProperty.id}` : null,
-      highlight: !!hottestProperty,
-      voiceResponse: hottestProperty
-        ? `Here is your hottest listing match: ${hottestProperty.address}.`
+      targetId: context.hottestListingMatch?.highlightId ?? null,
+      highlight: !!context.hottestListingMatch,
+      voiceResponse: context.hottestListingMatch
+        ? `Here is your hottest listing match: ${context.hottestListingMatch.address}.`
         : 'I opened the leads page where listing matches are surfaced.',
       confidence: 0.84,
       clarificationQuestion: null,
+      communication: null,
     }
   }
 
@@ -294,11 +349,12 @@ function fallbackDecision(request: AssistantRequest): AssistantDecision {
     return {
       intent: 'highlight_urgent_task',
       targetRoute: '/dashboard',
-      targetId: urgentTask ? `task:${urgentTask.id}` : 'section:tasks',
+      targetId: context.urgentTask?.highlightId ?? 'section:tasks',
       highlight: true,
       voiceResponse: 'I opened your urgent tasks and highlighted the next one to handle.',
       confidence: 0.82,
       clarificationQuestion: null,
+      communication: null,
     }
   }
 
@@ -308,11 +364,12 @@ function fallbackDecision(request: AssistantRequest): AssistantDecision {
       targetRoute: '/dashboard',
       targetId: 'section:tasks',
       highlight: true,
-      voiceResponse: topAction
-        ? `Start with ${topAction.title}. I highlighted it for you.`
+      voiceResponse: context.topAction
+        ? `Start with ${context.topAction.title}. I highlighted it for you.`
         : 'I opened your action plan.',
       confidence: 0.88,
       clarificationQuestion: null,
+      communication: null,
     }
   }
 
@@ -325,6 +382,7 @@ function fallbackDecision(request: AssistantRequest): AssistantDecision {
       voiceResponse: 'Here is your AI overview.',
       confidence: 0.82,
       clarificationQuestion: null,
+      communication: null,
     }
   }
 
@@ -336,7 +394,124 @@ function fallbackDecision(request: AssistantRequest): AssistantDecision {
     voiceResponse: 'I can help with leads, actions, listings, tasks, or transactions. Which one should I open?',
     confidence: 0.45,
     clarificationQuestion: 'Do you want leads, actions, listings, tasks, or transactions?',
+    communication: null,
   }
+}
+
+function fallbackCommunicationDecision(
+  message: string,
+  context: ReturnType<typeof getAssistantContext>,
+): AssistantDecision | null {
+  const text = message.toLowerCase()
+  const wantsEmail = matches(text, ['email', 'mail'])
+  const wantsText = matches(text, ['text', 'sms', 'message'])
+  if (!wantsEmail && !wantsText) return null
+
+  const lead = findMentionedLead(message, context.leads)
+  if (!lead) {
+    return {
+      intent: 'clarification_request',
+      targetRoute: null,
+      targetId: null,
+      highlight: false,
+      voiceResponse: 'Who should I send that to?',
+      confidence: 0.55,
+      clarificationQuestion: 'Which lead should I contact?',
+      communication: null,
+    }
+  }
+
+  const body = extractRequestedMessage(message) ?? defaultContactMessage(lead.name)
+
+  if (wantsEmail) {
+    return {
+      intent: 'send_email',
+      targetRoute: '/people',
+      targetId: lead.highlightId,
+      highlight: true,
+      voiceResponse: `I can send that email to ${lead.name}.`,
+      confidence: 0.78,
+      clarificationQuestion: null,
+      communication: {
+        channel: 'email',
+        leadId: lead.id,
+        recipientName: lead.name,
+        recipientEmail: lead.email,
+        recipientPhone: lead.phone,
+        subject: `Following up, ${lead.name}`,
+        body,
+        deliveryStatus: 'pending',
+        messageId: null,
+        launchHref: null,
+        error: null,
+      },
+    }
+  }
+
+  return {
+    intent: 'send_text_message',
+    targetRoute: '/people',
+    targetId: lead.highlightId,
+    highlight: true,
+    voiceResponse: `I can send that text to ${lead.name}.`,
+    confidence: 0.78,
+    clarificationQuestion: null,
+    communication: {
+      channel: 'sms',
+      leadId: lead.id,
+      recipientName: lead.name,
+      recipientEmail: lead.email,
+      recipientPhone: lead.phone,
+      subject: null,
+      body,
+      deliveryStatus: 'pending',
+      messageId: null,
+      launchHref: null,
+      error: null,
+    },
+  }
+}
+
+function findMentionedLead(
+  message: string,
+  leads: ReturnType<typeof getAssistantContext>['leads'],
+) {
+  const normalized = normalizeForSearch(message)
+  return leads.find((lead) => {
+    const name = normalizeForSearch(lead.name)
+    const parts = name.split(' ').filter(Boolean)
+    return normalized.includes(name) || parts.some((part) => part.length > 2 && normalized.includes(part))
+  })
+}
+
+function extractRequestedMessage(message: string) {
+  const patterns = [
+    /\b(?:that|saying|says|say|with message)\s+["“]?(.+?)["”]?$/i,
+    /:\s*["“]?(.+?)["”]?$/i,
+  ]
+
+  for (const pattern of patterns) {
+    const match = message.match(pattern)?.[1]?.trim()
+    if (match) return cleanQuotedText(match)
+  }
+
+  return null
+}
+
+function defaultContactMessage(name: string) {
+  return `Hi ${firstName(name)}, I wanted to follow up on your home search. Are you available for a quick conversation today?`
+}
+
+function firstName(name: string) {
+  return name.trim().split(/\s+/)[0] || 'there'
+}
+
+function normalizeForSearch(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+function cleanQuotedText(value: string) {
+  return value.replace(/^['"“”]+|['"“”]+$/g, '').trim()
 }
 
 function normalizeDecision(value: unknown): AssistantDecision {
@@ -365,7 +540,31 @@ function normalizeDecision(value: unknown): AssistantDecision {
       typeof candidate.clarificationQuestion === 'string'
         ? candidate.clarificationQuestion
         : null,
+    communication: normalizeCommunication(candidate.communication),
   }, '')
+}
+
+function normalizeCommunication(value: unknown): AssistantCommunication | null {
+  const candidate = value as Partial<AssistantCommunication> | null
+  if (!candidate || typeof candidate !== 'object') return null
+  if (candidate.channel !== 'email' && candidate.channel !== 'sms') return null
+  if (typeof candidate.leadId !== 'string' || !candidate.leadId.trim()) return null
+  if (typeof candidate.recipientName !== 'string' || !candidate.recipientName.trim()) return null
+  if (typeof candidate.body !== 'string' || !candidate.body.trim()) return null
+
+  return {
+    channel: candidate.channel,
+    leadId: candidate.leadId.trim(),
+    recipientName: candidate.recipientName.trim(),
+    recipientEmail: typeof candidate.recipientEmail === 'string' ? candidate.recipientEmail.trim() : null,
+    recipientPhone: typeof candidate.recipientPhone === 'string' ? candidate.recipientPhone.trim() : null,
+    subject: typeof candidate.subject === 'string' ? candidate.subject.trim() : null,
+    body: candidate.body.trim(),
+    deliveryStatus: candidate.deliveryStatus ?? 'pending',
+    messageId: typeof candidate.messageId === 'string' ? candidate.messageId : null,
+    launchHref: typeof candidate.launchHref === 'string' ? candidate.launchHref : null,
+    error: typeof candidate.error === 'string' ? candidate.error : null,
+  }
 }
 
 function withRequestDefaults(decision: AssistantDecision, message: string): AssistantDecision {
@@ -386,8 +585,8 @@ function withRequestDefaults(decision: AssistantDecision, message: string): Assi
   return decision
 }
 
-function highestScoreLead() {
-  return [...mockLeads].sort((a, b) => b.score - a.score)[0] ?? null
+function highestScoreLead(data: AppData) {
+  return [...data.leads].sort((a, b) => b.score - a.score)[0] ?? null
 }
 
 function matches(text: string, terms: string[]) {

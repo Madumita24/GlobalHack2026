@@ -1,3 +1,5 @@
+'use client'
+
 import Link from 'next/link'
 import {
   AlertTriangle,
@@ -12,18 +14,20 @@ import {
 import AppShell from '@/components/layout/AppShell'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { mockLeads, mockTransactions } from '@/lib/mock-data'
+import { useAppData } from '@/components/data/AppDataProvider'
 import type { Transaction } from '@/types/action'
 
-const urgentTransactions = mockTransactions.filter((tx) => tx.daysUntilDeadline <= 3)
-const closingSoon = mockTransactions.filter((tx) => {
-  const closingDate = new Date(`${tx.closingDate}T00:00:00`)
-  const now = new Date('2026-04-18T00:00:00')
-  const days = Math.round((closingDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000))
-  return days <= 14
-})
-
 export default function TransactionsPage() {
+  const { data } = useAppData()
+  const mockTransactions = data.transactions
+  const urgentTransactions = mockTransactions.filter((tx) => tx.daysUntilDeadline <= 3)
+  const closingSoon = mockTransactions.filter((tx) => {
+    const closingDate = new Date(`${tx.closingDate}T00:00:00`)
+    const now = new Date('2026-04-18T00:00:00')
+    const days = Math.round((closingDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000))
+    return days <= 14
+  })
+
   return (
     <AppShell>
       <main className="min-w-0 flex-1 overflow-y-auto px-6 py-5">
@@ -150,7 +154,8 @@ function MetricCard({
 }
 
 function TransactionCard({ transaction }: { transaction: Transaction }) {
-  const lead = mockLeads.find((item) => item.id === transaction.leadId)
+  const { data } = useAppData()
+  const lead = data.leads.find((item) => item.id === transaction.leadId)
   const urgent = transaction.daysUntilDeadline <= 1
   const soon = transaction.daysUntilDeadline <= 3
 

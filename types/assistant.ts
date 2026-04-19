@@ -11,6 +11,8 @@ export type AssistantIntent =
   | 'highlight_top_lead'
   | 'highlight_urgent_task'
   | 'explain_action'
+  | 'send_email'
+  | 'send_text_message'
   | 'general_question'
   | 'clarification_request'
 
@@ -36,6 +38,21 @@ export type AssistantDecision = {
   voiceResponse: string
   confidence: number
   clarificationQuestion: string | null
+  communication: AssistantCommunication | null
+}
+
+export type AssistantCommunication = {
+  channel: 'email' | 'sms'
+  leadId: string
+  recipientName: string
+  recipientEmail: string | null
+  recipientPhone: string | null
+  subject: string | null
+  body: string
+  deliveryStatus: 'pending' | 'accepted' | 'sent' | 'failed'
+  messageId: string | null
+  launchHref: string | null
+  error: string | null
 }
 
 export type AssistantChatMessage = {
