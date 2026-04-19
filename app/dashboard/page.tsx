@@ -12,6 +12,20 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { useAppData } from '@/components/data/AppDataProvider'
 import { buildMailtoHref, buildSmsHref, buildTelHref, defaultLeadMessage, listingMessage } from '@/lib/contact-links'
+import {
+  agentProfile,
+  mockLeads,
+  mockTransactions,
+  mockTasks,
+  mockProperties,
+  mockEvents,
+  mockAppointments,
+} from '@/lib/mock-data'
+import { BriefingCard } from '@/components/dashboard/BriefingCard'
+import { useVoice } from '@/hooks/useVoice'
+import { getBriefingScript } from '@/lib/voice-scripts'
+import { useConfetti } from '@/hooks/useConfetti'
+import { generateRecommendedActions } from '@/lib/scoring'
 import type { Lead } from '@/types/lead'
 import type { RecommendedAction, Task, Transaction } from '@/types/action'
 
@@ -138,7 +152,7 @@ function TodayTodoPanel({
   return (
     <section
       data-assistant-id="section:tasks"
-      className="mb-5 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm"
+      className="mb-5 overflow-hidden rounded-2xl border border-gray-100 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm"
     >
       <div className="flex items-start justify-between gap-6 px-5 py-5">
         <div className="min-w-0 flex-1">
@@ -289,6 +303,8 @@ export default function DashboardPage() {
   const topActions = data.actions
   const [panel, setPanel] = useState<PanelContent>(null)
   const [doneTaskIds, setDoneTaskIds] = useState<Set<string>>(new Set())
+  const { state: voiceState, activeId: voiceActiveId, speak } = useVoice()
+  const { fire } = useConfetti()
 
   // Derived data for context widgets
   const hotLeads          = mockLeads.filter((l) => l.stage === 'hot' || l.score >= 70)
@@ -299,21 +315,39 @@ export default function DashboardPage() {
   const today             = new Date().toISOString().split('T')[0]
   const todayAppointments = mockAppointments.filter((a) => a.date === today)
 
-  const toggleTaskDone = useCallback((taskId: string) => {
-    setDoneTaskIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(taskId)) next.delete(taskId)
-      else next.add(taskId)
-      return next
-    })
-  }, [])
+  const handleHearBriefing = useCallback(() => {
+    speak(getBriefingScript(agentProfile.name, topActions), 'briefing')
+  }, [speak])
+
+  const toggleTaskDone = useCallback(
+    (taskId: string) => {
+      setDoneTaskIds((prev) => {
+        const next = new Set(prev)
+        if (next.has(taskId)) {
+          next.delete(taskId)
+        } else {
+          next.add(taskId)
+          requestAnimationFrame(() => fire())
+        }
+        return next
+      })
+    },
+    [fire],
+  )
 
   return (
     <div className="flex flex-1 min-h-0">
-      <main className="flex-1 overflow-y-auto px-6 py-5 min-w-0">
+      <main className="flex-1 overflow-y-auto px-6 py-5 min-w-0 dark:bg-slate-950">
+        <BriefingCard
+          agentName={agentProfile.name}
+          actions={topActions}
+          isSpeaking={voiceActiveId === 'briefing' && voiceState === 'playing'}
+          isLoading={voiceActiveId === 'briefing' && voiceState === 'loading'}
+          onHearBriefing={handleHearBriefing}
+        />
 
         {/* ── Stat Strip ────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-4 gap-3 mb-6">
+        <div data-tour="stat-strip" className="grid grid-cols-4 gap-3 mb-6">
           {[
             {
               label: 'New Leads Today',
@@ -362,15 +396,15 @@ export default function DashboardPage() {
           ].map((c) => (
             <div
               key={c.label}
-              className={`bg-white rounded-2xl p-4 border border-gray-100 shadow-sm cursor-pointer hover:shadow-md hover:ring-2 ${c.ring} transition-all duration-150`}
+              className={`bg-white dark:bg-slate-900 rounded-2xl p-4 border border-gray-100 dark:border-slate-700 shadow-sm cursor-pointer hover:shadow-md hover:ring-2 ${c.ring} transition-all duration-150`}
             >
               <div className="flex items-start justify-between mb-3">
-                <p className="text-xs font-medium text-gray-500 leading-tight">{c.label}</p>
+                <p className="text-xs font-medium text-gray-500 dark:text-slate-400 leading-tight">{c.label}</p>
                 <div className={`${c.bg} p-2 rounded-xl`}>
                   <c.icon className={`w-3.5 h-3.5 ${c.color}`} />
                 </div>
               </div>
-              <p className="text-3xl font-bold text-gray-900">{c.value}</p>
+              <p className="text-3xl font-bold text-gray-900 dark:text-slate-100">{c.value}</p>
               <div className="flex items-center justify-between mt-1">
                 <p className="text-xs text-gray-400">{c.sub}</p>
                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
@@ -609,11 +643,11 @@ export default function DashboardPage() {
 
       {/* ── Detail Panel ──────────────────────────────────────────────────── */}
       {panel && (
-        <aside className="w-80 shrink-0 bg-white border-l border-gray-100 flex flex-col overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <aside className="w-80 shrink-0 bg-white dark:bg-slate-900 border-l border-gray-100 dark:border-slate-700 flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-slate-700">
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#1a6bcc]" />
-              <span className="text-sm font-semibold text-gray-900">
+              <span className="text-sm font-semibold text-gray-900 dark:text-slate-100">
                 {panel.kind === 'lead'
                   ? panel.data.name
                   : panel.kind === 'transaction'

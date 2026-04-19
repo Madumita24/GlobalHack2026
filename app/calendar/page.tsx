@@ -113,14 +113,14 @@ export default function CalendarPage() {
               </p>
             </div>
 
-            <div className="flex items-center rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
+            <div className="flex items-center rounded-xl border border-gray-200 bg-white p-1 shadow-sm dark:bg-slate-800 dark:border-slate-700">
               {(['day', 'week', 'month'] as const).map((item) => (
                 <button
                   key={item}
                   onClick={() => setView(item)}
                   className={[
                     'rounded-lg px-4 py-2 text-xs font-semibold capitalize transition-colors',
-                    view === item ? 'bg-[#1a6bcc] text-white' : 'text-gray-500 hover:bg-gray-50',
+                    view === item ? 'bg-[#1a6bcc] text-white' : 'text-gray-500 hover:bg-gray-50 dark:text-slate-300 dark:hover:bg-slate-700',
                   ].join(' ')}
                 >
                   {item}
@@ -138,9 +138,9 @@ export default function CalendarPage() {
 
           <section
             data-assistant-id="section:calendar"
-            className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm"
+            className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm dark:bg-slate-900 dark:border-slate-700"
           >
-            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5">
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5 dark:border-slate-700">
               <div>
                 <p className="text-sm font-bold text-gray-900">Saturday, April 18</p>
                 <p className="text-xs text-gray-400">AI calendar draft for James Carter</p>
@@ -159,10 +159,10 @@ export default function CalendarPage() {
             data-assistant-id="section:calendar-conflicts"
             className="grid grid-cols-[minmax(0,1fr)_minmax(320px,420px)] gap-4"
           >
-            <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+            <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:bg-slate-900 dark:border-slate-700">
               <div className="mb-4 flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-[#1a6bcc]" />
-                <p className="text-sm font-bold text-gray-900">AI scheduling notes</p>
+                <p className="text-sm font-bold text-gray-900 dark:text-slate-100">AI scheduling notes</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 {conflicts.map((event) => (
@@ -171,22 +171,22 @@ export default function CalendarPage() {
               </div>
             </section>
 
-            <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+            <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:bg-slate-900 dark:border-slate-700">
               <div className="mb-4 flex items-center gap-2">
                 <Clock className="h-4 w-4 text-emerald-600" />
-                <p className="text-sm font-bold text-gray-900">Agent free time</p>
+                <p className="text-sm font-bold text-gray-900 dark:text-slate-100">Agent free time</p>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 {WORK_WINDOWS.map((slot) => (
-                  <div key={slot.label} className="rounded-xl bg-emerald-50 px-3 py-3">
-                    <p className="text-xs font-semibold text-emerald-800">{slot.label}</p>
-                    <p className="mt-1 text-xs text-emerald-600">
+                  <div key={slot.label} className="rounded-xl bg-emerald-50 px-3 py-3 dark:bg-emerald-900/20">
+                    <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-200">{slot.label}</p>
+                    <p className="mt-1 text-xs text-emerald-600 dark:text-emerald-300">
                       {formatTime(slot.start)} - {formatTime(slot.end)}
                     </p>
                   </div>
                 ))}
               </div>
-              <p className="mt-4 text-xs leading-relaxed text-gray-500">
+              <p className="mt-4 text-xs leading-relaxed text-gray-500 dark:text-slate-400">
                 Future message sends should use these windows and avoid existing showings, calls, and lunch.
               </p>
             </section>
@@ -284,17 +284,17 @@ function DayView({ events }: { events: CalendarEvent[] }) {
   const dayEvents = events.filter((event) => event.date === DEMO_DATE)
 
   return (
-    <div className="divide-y divide-gray-100">
+    <div className="divide-y divide-gray-100 dark:divide-slate-700">
       {TIME_ROWS.map((time) => {
         const rowEvents = dayEvents.filter((event) => event.start >= time && event.start < time + 60)
         return (
           <div key={time} className="grid min-h-28 grid-cols-[104px_1fr]">
-            <div className="border-r border-gray-100 px-5 py-5 text-xs font-medium text-gray-400">
+            <div className="border-r border-gray-100 px-5 py-5 text-xs font-medium text-gray-400 dark:border-slate-700 dark:text-slate-400">
               {formatTime(time)}
             </div>
             <div className="space-y-3 px-5 py-4">
               {rowEvents.length === 0 ? (
-                <div className="h-16 rounded-xl border border-dashed border-gray-100 bg-gray-50/60" />
+                <div className="h-16 rounded-xl border border-dashed border-gray-100 bg-gray-50/60 dark:border-slate-700 dark:bg-slate-800/60" />
               ) : (
                 rowEvents.map((event) => <EventCard key={event.id} event={event} />)
               )}
@@ -309,14 +309,14 @@ function DayView({ events }: { events: CalendarEvent[] }) {
 function WeekView({ events }: { events: CalendarEvent[] }) {
   return (
     <div className="overflow-x-auto">
-      <div className="grid min-w-[960px] grid-cols-7 divide-x divide-gray-100">
+      <div className="grid min-w-[960px] grid-cols-7 divide-x divide-gray-100 dark:divide-slate-700">
         {WEEK_DAYS.map((day) => {
           const dayEvents = events.filter((event) => event.date === day.date)
           return (
-            <div key={day.date} className={day.date === DEMO_DATE ? 'bg-blue-50/30' : ''}>
-              <div className="border-b border-gray-100 px-4 py-4">
-                <p className="text-xs font-semibold text-gray-400">{day.label}</p>
-                <p className="text-lg font-bold text-gray-900">{day.day}</p>
+            <div key={day.date} className={day.date === DEMO_DATE ? 'bg-blue-50/30 dark:bg-blue-950/30' : 'dark:bg-slate-950'}>
+              <div className="border-b border-gray-100 px-4 py-4 dark:border-slate-700">
+                <p className="text-xs font-semibold text-gray-400 dark:text-slate-400">{day.label}</p>
+                <p className="text-lg font-bold text-gray-900 dark:text-slate-100">{day.day}</p>
               </div>
               <div className="min-h-[420px] space-y-3 p-4">
                 {dayEvents.map((event) => (
@@ -370,33 +370,33 @@ function EventCard({ event }: { event: CalendarEvent }) {
       className={[
         'rounded-xl border p-4',
         event.conflict || event.outsideAvailability
-          ? 'border-red-200 bg-red-50'
+          ? 'border-red-200 bg-red-50 dark:border-red-700/50 dark:bg-red-900/20'
           : event.source === 'appointment'
-            ? 'border-emerald-100 bg-emerald-50'
-            : 'border-blue-100 bg-blue-50',
+            ? 'border-emerald-100 bg-emerald-50 dark:border-emerald-600/40 dark:bg-emerald-900/20'
+            : 'border-blue-100 bg-blue-50 dark:border-blue-600/40 dark:bg-blue-950/15',
       ].join(' ')}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 gap-3">
-          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white">
+          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white dark:bg-slate-800">
             <Icon className="h-4 w-4 text-[#1a6bcc]" />
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="truncate text-sm font-bold text-gray-900">{event.title}</p>
-              {event.aiAdded && <Badge className="border-0 bg-white text-[#1a6bcc]">AI added</Badge>}
+              <p className="truncate text-sm font-bold text-gray-900 dark:text-slate-100">{event.title}</p>
+              {event.aiAdded && <Badge className="border-0 bg-white dark:bg-slate-900 text-[#1a6bcc]">AI added</Badge>}
               {(event.conflict || event.outsideAvailability) && (
-                <Badge className="border-0 bg-red-100 text-red-700">Needs reschedule</Badge>
+                <Badge className="border-0 bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-200">Needs reschedule</Badge>
               )}
             </div>
-            <p className="mt-0.5 text-xs text-gray-500">
+            <p className="mt-0.5 text-xs text-gray-500 dark:text-slate-400">
               {event.owner} · {formatTime(event.start)}-{formatTime(event.end)}
             </p>
-            <p className="mt-2 text-xs leading-relaxed text-gray-500">{event.note}</p>
+            <p className="mt-2 text-xs leading-relaxed text-gray-500 dark:text-slate-400">{event.note}</p>
           </div>
         </div>
         {event.suggestedStart !== undefined && (
-          <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-semibold text-emerald-700">
+          <span className="shrink-0 rounded-full bg-white dark:bg-slate-800 px-2 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-200">
             Suggest {formatTime(event.suggestedStart)}
           </span>
         )}
@@ -409,28 +409,28 @@ function EventChip({ event }: { event: CalendarEvent }) {
   return (
     <div
       data-assistant-id={event.id}
-      className={`rounded-lg px-3 py-2 text-xs ${event.conflict ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-[#1a6bcc]'}`}
+      className={`rounded-lg px-3 py-2 text-xs ${event.conflict ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-200' : 'bg-blue-50 text-[#1a6bcc] dark:bg-blue-950/15 dark:text-blue-200'}`}
     >
       <p className="truncate font-semibold">{event.title}</p>
-      <p className="text-[10px] opacity-70">{formatTime(event.start)}</p>
+      <p className="text-[10px] opacity-70 dark:text-slate-400">{formatTime(event.start)}</p>
     </div>
   )
 }
 
 function ConflictCard({ event }: { event: CalendarEvent }) {
   return (
-    <div className="rounded-xl border border-red-100 bg-red-50 p-4">
+    <div className="rounded-xl border border-red-100 bg-red-50 p-4 dark:border-red-700/50 dark:bg-red-900/20">
       <div className="mb-2 flex items-center gap-2">
         <AlertTriangle className="h-3.5 w-3.5 text-red-600" />
-        <p className="text-xs font-bold text-red-700">{event.title}</p>
+        <p className="text-xs font-bold text-red-700 dark:text-red-200">{event.title}</p>
       </div>
-      <p className="text-xs leading-relaxed text-red-600">
+      <p className="text-xs leading-relaxed text-red-600 dark:text-red-200">
         {event.outsideAvailability
           ? 'This falls outside the agent availability window.'
           : 'This overlaps with an existing appointment or task.'}
       </p>
       {event.suggestedStart !== undefined && (
-        <p className="mt-2 text-xs font-semibold text-emerald-700">
+        <p className="mt-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
           AI suggestion: move to {formatTime(event.suggestedStart)}.
         </p>
       )}
@@ -450,13 +450,13 @@ function MetricCard({
   color: string
 }) {
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:bg-slate-900 dark:border-slate-700">
       <div className="mb-3 flex items-center justify-between">
-        <p className="text-xs font-medium text-gray-500">{label}</p>
+        <p className="text-xs font-medium text-gray-500 dark:text-slate-400">{label}</p>
         <Bot className="h-3.5 w-3.5 text-gray-300" />
       </div>
       <p className={`text-3xl font-bold ${color}`}>{value}</p>
-      <p className="mt-1 text-xs text-gray-400">{sub}</p>
+      <p className="mt-1 text-xs text-gray-400 dark:text-slate-500">{sub}</p>
     </div>
   )
 }
