@@ -87,56 +87,56 @@ export default function CalendarPage() {
   return (
     <AppShell>
       <main className="min-w-0 flex-1 overflow-y-auto px-6 py-5">
-        <div className="mb-5 flex items-center justify-between">
-          <div>
-            <Link
-              href="/dashboard"
-              className="mb-2 inline-flex items-center gap-1 text-xs font-medium text-[#1a6bcc] hover:underline"
-            >
-              <ArrowLeft className="h-3 w-3" />
-              Back to overview
-            </Link>
-            <div className="flex items-center gap-2">
-              <CalendarDays className="h-5 w-5 text-[#1a6bcc]" />
-              <h1 className="text-xl font-bold text-gray-900">Calendar</h1>
-              <Badge className="border-0 bg-blue-50 text-[#1a6bcc]">
-                {taskEvents.length} AI-added tasks
-              </Badge>
-            </div>
-            <p className="mt-1 text-sm text-gray-500">
-              AI places tasks on the agent&apos;s calendar, detects conflicts, and suggests open windows.
-            </p>
-          </div>
-
-          <div className="flex items-center rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
-            {(['day', 'week', 'month'] as const).map((item) => (
-              <button
-                key={item}
-                onClick={() => setView(item)}
-                className={[
-                  'rounded-lg px-3 py-1.5 text-xs font-semibold capitalize transition-colors',
-                  view === item ? 'bg-[#1a6bcc] text-white' : 'text-gray-500 hover:bg-gray-50',
-                ].join(' ')}
+        <div className="mx-auto max-w-[1500px] space-y-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <Link
+                href="/dashboard"
+                className="mb-2 inline-flex items-center gap-1 text-xs font-medium text-[#1a6bcc] hover:underline"
               >
-                {item}
-              </button>
-            ))}
+                <ArrowLeft className="h-3 w-3" />
+                Back to overview
+              </Link>
+              <div className="flex items-center gap-2">
+                <CalendarDays className="h-5 w-5 text-[#1a6bcc]" />
+                <h1 className="text-xl font-bold text-gray-900">Calendar</h1>
+                <Badge className="border-0 bg-blue-50 text-[#1a6bcc]">
+                  {taskEvents.length} AI-added tasks
+                </Badge>
+              </div>
+              <p className="mt-1 text-sm text-gray-500">
+                AI places tasks on the agent&apos;s calendar, detects conflicts, and suggests open windows.
+              </p>
+            </div>
+
+            <div className="flex items-center rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
+              {(['day', 'week', 'month'] as const).map((item) => (
+                <button
+                  key={item}
+                  onClick={() => setView(item)}
+                  className={[
+                    'rounded-lg px-4 py-2 text-xs font-semibold capitalize transition-colors',
+                    view === item ? 'bg-[#1a6bcc] text-white' : 'text-gray-500 hover:bg-gray-50',
+                  ].join(' ')}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
 
-        <div className="mb-5 grid grid-cols-4 gap-3">
-          <MetricCard label="AI-added Tasks" value={taskEvents.length} sub="From Today's Tasks" color="text-[#1a6bcc]" />
-          <MetricCard label="Conflicts Found" value={conflicts.length} sub="Needs reschedule" color="text-red-600" />
-          <MetricCard label="Free Windows" value={4} sub="Inside agent availability" color="text-emerald-600" />
-          <MetricCard label="Work Hours" value={8} sub="9 AM - 5 PM, lunch protected" color="text-violet-600" />
-        </div>
+          <div className="grid grid-cols-4 gap-4">
+            <MetricCard label="AI-added Tasks" value={taskEvents.length} sub="From Today's Tasks" color="text-[#1a6bcc]" />
+            <MetricCard label="Conflicts Found" value={conflicts.length} sub="Needs reschedule" color="text-red-600" />
+            <MetricCard label="Free Windows" value={4} sub="Inside agent availability" color="text-emerald-600" />
+            <MetricCard label="Work Hours" value={8} sub="9 AM - 5 PM, lunch protected" color="text-violet-600" />
+          </div>
 
-        <div className="grid grid-cols-[1fr_360px] gap-4">
           <section
             data-assistant-id="section:calendar"
             className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm"
           >
-            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+            <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5">
               <div>
                 <p className="text-sm font-bold text-gray-900">Saturday, April 18</p>
                 <p className="text-xs text-gray-400">AI calendar draft for James Carter</p>
@@ -151,42 +151,42 @@ export default function CalendarPage() {
             {view === 'month' && <MonthView events={calendar} />}
           </section>
 
-          <aside
+          <div
             data-assistant-id="section:calendar-conflicts"
-            className="space-y-4"
+            className="grid grid-cols-[minmax(0,1fr)_minmax(320px,420px)] gap-4"
           >
-            <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center gap-2">
+            <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-[#1a6bcc]" />
                 <p className="text-sm font-bold text-gray-900">AI scheduling notes</p>
               </div>
-              <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3">
                 {conflicts.map((event) => (
                   <ConflictCard key={event.id} event={event} />
                 ))}
               </div>
-            </div>
+            </section>
 
-            <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center gap-2">
+            <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+              <div className="mb-4 flex items-center gap-2">
                 <Clock className="h-4 w-4 text-emerald-600" />
                 <p className="text-sm font-bold text-gray-900">Agent free time</p>
               </div>
-              <div className="space-y-2">
-                {WORK_WINDOWS.map((window) => (
-                  <div key={window.label} className="rounded-xl bg-emerald-50 px-3 py-2">
-                    <p className="text-xs font-semibold text-emerald-800">{window.label}</p>
-                    <p className="text-xs text-emerald-600">
-                      {formatTime(window.start)} - {formatTime(window.end)}
+              <div className="grid grid-cols-2 gap-3">
+                {WORK_WINDOWS.map((slot) => (
+                  <div key={slot.label} className="rounded-xl bg-emerald-50 px-3 py-3">
+                    <p className="text-xs font-semibold text-emerald-800">{slot.label}</p>
+                    <p className="mt-1 text-xs text-emerald-600">
+                      {formatTime(slot.start)} - {formatTime(slot.end)}
                     </p>
                   </div>
                 ))}
               </div>
-              <p className="mt-3 text-xs leading-relaxed text-gray-500">
+              <p className="mt-4 text-xs leading-relaxed text-gray-500">
                 Future message sends should use these windows and avoid existing showings, calls, and lunch.
               </p>
-            </div>
-          </aside>
+            </section>
+          </div>
         </div>
       </main>
     </AppShell>
@@ -280,13 +280,13 @@ function DayView({ events }: { events: CalendarEvent[] }) {
       {TIME_ROWS.map((time) => {
         const rowEvents = dayEvents.filter((event) => event.start >= time && event.start < time + 60)
         return (
-          <div key={time} className="grid min-h-24 grid-cols-[82px_1fr]">
-            <div className="border-r border-gray-100 px-4 py-4 text-xs font-medium text-gray-400">
+          <div key={time} className="grid min-h-28 grid-cols-[104px_1fr]">
+            <div className="border-r border-gray-100 px-5 py-5 text-xs font-medium text-gray-400">
               {formatTime(time)}
             </div>
-            <div className="space-y-2 px-4 py-3">
+            <div className="space-y-3 px-5 py-4">
               {rowEvents.length === 0 ? (
-                <div className="h-14 rounded-xl border border-dashed border-gray-100 bg-gray-50/60" />
+                <div className="h-16 rounded-xl border border-dashed border-gray-100 bg-gray-50/60" />
               ) : (
                 rowEvents.map((event) => <EventCard key={event.id} event={event} />)
               )}
@@ -300,23 +300,25 @@ function DayView({ events }: { events: CalendarEvent[] }) {
 
 function WeekView({ events }: { events: CalendarEvent[] }) {
   return (
-    <div className="grid grid-cols-7 divide-x divide-gray-100">
-      {WEEK_DAYS.map((day) => {
-        const dayEvents = events.filter((event) => event.date === day.date)
-        return (
-          <div key={day.date} className={day.date === DEMO_DATE ? 'bg-blue-50/30' : ''}>
-            <div className="border-b border-gray-100 px-3 py-3">
-              <p className="text-xs font-semibold text-gray-400">{day.label}</p>
-              <p className="text-lg font-bold text-gray-900">{day.day}</p>
+    <div className="overflow-x-auto">
+      <div className="grid min-w-[960px] grid-cols-7 divide-x divide-gray-100">
+        {WEEK_DAYS.map((day) => {
+          const dayEvents = events.filter((event) => event.date === day.date)
+          return (
+            <div key={day.date} className={day.date === DEMO_DATE ? 'bg-blue-50/30' : ''}>
+              <div className="border-b border-gray-100 px-4 py-4">
+                <p className="text-xs font-semibold text-gray-400">{day.label}</p>
+                <p className="text-lg font-bold text-gray-900">{day.day}</p>
+              </div>
+              <div className="min-h-[420px] space-y-3 p-4">
+                {dayEvents.map((event) => (
+                  <EventChip key={event.id} event={event} />
+                ))}
+              </div>
             </div>
-            <div className="min-h-96 space-y-2 p-3">
-              {dayEvents.map((event) => (
-                <EventChip key={event.id} event={event} />
-              ))}
-            </div>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -330,14 +332,14 @@ function MonthView({ events }: { events: CalendarEvent[] }) {
         return (
           <div
             key={day}
-            className={`min-h-28 bg-white p-2 ${date === DEMO_DATE ? 'ring-2 ring-inset ring-[#1a6bcc]' : ''}`}
+            className={`min-h-32 bg-white p-3 ${date === DEMO_DATE ? 'ring-2 ring-inset ring-[#1a6bcc]' : ''}`}
           >
             <p className="mb-2 text-xs font-bold text-gray-700">{day}</p>
             <div className="space-y-1">
               {dayEvents.slice(0, 3).map((event) => (
                 <div
                   key={event.id}
-                  className={`truncate rounded px-1.5 py-1 text-[10px] font-medium ${event.conflict ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-[#1a6bcc]'}`}
+                  className={`truncate rounded px-2 py-1.5 text-[10px] font-medium ${event.conflict ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-[#1a6bcc]'}`}
                 >
                   {event.title}
                 </div>
@@ -358,7 +360,7 @@ function EventCard({ event }: { event: CalendarEvent }) {
     <div
       data-assistant-id={event.id}
       className={[
-        'rounded-xl border p-3',
+        'rounded-xl border p-4',
         event.conflict || event.outsideAvailability
           ? 'border-red-200 bg-red-50'
           : event.source === 'appointment'
@@ -368,7 +370,7 @@ function EventCard({ event }: { event: CalendarEvent }) {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 gap-3">
-          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white">
+          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white">
             <Icon className="h-4 w-4 text-[#1a6bcc]" />
           </div>
           <div className="min-w-0">
@@ -382,7 +384,7 @@ function EventCard({ event }: { event: CalendarEvent }) {
             <p className="mt-0.5 text-xs text-gray-500">
               {event.owner} · {formatTime(event.start)}-{formatTime(event.end)}
             </p>
-            <p className="mt-1 text-xs leading-relaxed text-gray-500">{event.note}</p>
+            <p className="mt-2 text-xs leading-relaxed text-gray-500">{event.note}</p>
           </div>
         </div>
         {event.suggestedStart !== undefined && (
@@ -399,7 +401,7 @@ function EventChip({ event }: { event: CalendarEvent }) {
   return (
     <div
       data-assistant-id={event.id}
-      className={`rounded-lg px-2 py-1.5 text-xs ${event.conflict ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-[#1a6bcc]'}`}
+      className={`rounded-lg px-3 py-2 text-xs ${event.conflict ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-[#1a6bcc]'}`}
     >
       <p className="truncate font-semibold">{event.title}</p>
       <p className="text-[10px] opacity-70">{formatTime(event.start)}</p>
@@ -409,7 +411,7 @@ function EventChip({ event }: { event: CalendarEvent }) {
 
 function ConflictCard({ event }: { event: CalendarEvent }) {
   return (
-    <div className="rounded-xl border border-red-100 bg-red-50 p-3">
+    <div className="rounded-xl border border-red-100 bg-red-50 p-4">
       <div className="mb-2 flex items-center gap-2">
         <AlertTriangle className="h-3.5 w-3.5 text-red-600" />
         <p className="text-xs font-bold text-red-700">{event.title}</p>
@@ -440,7 +442,7 @@ function MetricCard({
   color: string
 }) {
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
         <p className="text-xs font-medium text-gray-500">{label}</p>
         <Bot className="h-3.5 w-3.5 text-gray-300" />
