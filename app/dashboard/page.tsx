@@ -10,7 +10,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { mockLeads, mockTransactions, mockTasks, mockProperties, mockEvents } from '@/lib/mock-data'
+import { mockLeads, mockTransactions, mockTasks, mockProperties, mockEvents, mockAppointments } from '@/lib/mock-data'
 import { generateRecommendedActions } from '@/lib/scoring'
 import type { Lead } from '@/types/lead'
 import type { RecommendedAction, Task, Transaction } from '@/types/action'
@@ -207,19 +207,22 @@ function TodayTodoPanel({
               const lead = task.leadId ? mockLeads.find((item) => item.id === task.leadId) : null
               const done = task.completed || doneTaskIds.has(task.id)
 
+              const ActionIcon = task.type === 'call' ? Phone : task.type === 'text' ? MessageSquare : task.type === 'email' ? Mail : null
+
               return (
-                <button
+                <div
                   key={task.id}
                   data-assistant-id={`task:${task.id}`}
-                  onClick={() => onToggleTask(task.id)}
                   className={[
-                    'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors',
+                    'group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 transition-colors',
                     done ? 'bg-emerald-50/70 opacity-70' : 'hover:bg-gray-50',
                   ].join(' ')}
                 >
-                  <span className={done ? 'text-emerald-600' : 'text-gray-300'}>
-                    {done ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
-                  </span>
+                  <button onClick={() => onToggleTask(task.id)} className="shrink-0">
+                    <span className={done ? 'text-emerald-600' : 'text-gray-300'}>
+                      {done ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
+                    </span>
+                  </button>
                   <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${m.bg}`}>
                     <Icon className={`h-3.5 w-3.5 ${m.color}`} />
                   </div>
@@ -231,7 +234,16 @@ function TodayTodoPanel({
                       {lead?.name ?? 'General task'} {task.dueTime ? `· ${task.dueTime}` : ''}
                     </p>
                   </div>
-                </button>
+                  {!done && ActionIcon && (
+                    <button
+                      onClick={() => onToggleTask(task.id)}
+                      className={`shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold opacity-0 group-hover:opacity-100 transition-all duration-150 ${m.bg} ${m.color}`}
+                    >
+                      <ActionIcon className="h-3 w-3" />
+                      {task.type === 'call' ? 'Call' : task.type === 'text' ? 'Text' : 'Email'}
+                    </button>
+                  )}
+                </div>
               )
             })}
           </div>
@@ -279,11 +291,13 @@ export default function DashboardPage() {
   const [doneTaskIds, setDoneTaskIds] = useState<Set<string>>(new Set())
 
   // Derived data for context widgets
-  const hotLeads       = mockLeads.filter((l) => l.stage === 'hot' || l.score >= 70)
-  const backToSite     = mockLeads.filter((l) => l.intentSignals.includes('back_to_site'))
-  const coolingLeads   = mockLeads.filter((l) => l.lastContactDaysAgo >= 14)
-  const urgentTx       = mockTransactions.filter((t) => t.daysUntilDeadline <= 3)
-  const backOnMarket   = mockProperties.filter((p) => p.status === 'back_on_market')
+  const hotLeads          = mockLeads.filter((l) => l.stage === 'hot' || l.score >= 70)
+  const backToSite        = mockLeads.filter((l) => l.intentSignals.includes('back_to_site'))
+  const coolingLeads      = mockLeads.filter((l) => l.lastContactDaysAgo >= 14)
+  const urgentTx          = mockTransactions.filter((t) => t.daysUntilDeadline <= 3)
+  const backOnMarket      = mockProperties.filter((p) => p.status === 'back_on_market')
+  const today             = new Date().toISOString().split('T')[0]
+  const todayAppointments = mockAppointments.filter((a) => a.date === today)
 
   const toggleTaskDone = useCallback((taskId: string) => {
     setDoneTaskIds((prev) => {
@@ -309,6 +323,8 @@ export default function DashboardPage() {
               color: 'text-blue-600',
               bg: 'bg-blue-50',
               ring: 'hover:ring-blue-200',
+              delta: '+2 from yesterday',
+              deltaUp: true,
             },
             {
               label: 'High Interest',
@@ -318,6 +334,8 @@ export default function DashboardPage() {
               color: 'text-rose-600',
               bg: 'bg-rose-50',
               ring: 'hover:ring-rose-200',
+              delta: '+1 since morning',
+              deltaUp: true,
             },
             {
               label: 'Tx Deadlines',
@@ -327,6 +345,8 @@ export default function DashboardPage() {
               color: 'text-orange-600',
               bg: 'bg-orange-50',
               ring: 'hover:ring-orange-200',
+              delta: 'Same as yesterday',
+              deltaUp: null,
             },
             {
               label: 'Back on Market',
@@ -336,6 +356,8 @@ export default function DashboardPage() {
               color: 'text-emerald-600',
               bg: 'bg-emerald-50',
               ring: 'hover:ring-emerald-200',
+              delta: '+3 new listings',
+              deltaUp: true,
             },
           ].map((c) => (
             <div
@@ -349,7 +371,16 @@ export default function DashboardPage() {
                 </div>
               </div>
               <p className="text-3xl font-bold text-gray-900">{c.value}</p>
-              <p className="text-xs text-gray-400 mt-1">{c.sub}</p>
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-xs text-gray-400">{c.sub}</p>
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                  c.deltaUp === true  ? 'bg-emerald-50 text-emerald-600' :
+                  c.deltaUp === false ? 'bg-red-50 text-red-500' :
+                  'bg-gray-50 text-gray-400'
+                }`}>
+                  {c.deltaUp === true ? '↑' : c.deltaUp === false ? '↓' : '→'} {c.delta}
+                </span>
+              </div>
             </div>
           ))}
         </div>
@@ -416,7 +447,8 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Col 2 row 1 — Transactions */}
+          {/* Col 2 row 1 — Transactions + Deadline Countdown */}
+          <div className="space-y-4">
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
             <SectionHeader
               icon={<Clock className="w-4 h-4" />}
@@ -448,27 +480,54 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {/* Deadline countdown strip */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 space-y-2">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Next deadlines</p>
+            {mockTransactions.slice(0, 3).map((tx) => (
+              <div key={tx.id} className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                    tx.daysUntilDeadline <= 1 ? 'bg-red-500' : tx.daysUntilDeadline <= 3 ? 'bg-amber-400' : 'bg-emerald-400'
+                  }`} />
+                  <span className="text-xs text-gray-700 truncate">{tx.nextDeadlineLabel}</span>
+                </div>
+                <span className={`text-xs font-bold shrink-0 ${
+                  tx.daysUntilDeadline <= 1 ? 'text-red-500' : tx.daysUntilDeadline <= 3 ? 'text-amber-500' : 'text-emerald-600'
+                }`}>
+                  {tx.daysUntilDeadline <= 1 ? 'Tomorrow' : `${tx.daysUntilDeadline}d`}
+                </span>
+              </div>
+            ))}
+          </div>
+          </div>
+
           {/* Col 3 row 1 — Appointments + Hot Sheets */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
             <SectionHeader
               icon={<CalendarDays className="w-4 h-4" />}
-              title="Appointments"
-              count={2}
+              title="Today's Appointments"
+              count={todayAppointments.length}
+              countColor="bg-blue-50 text-blue-600"
+              href="/calendar"
             />
             <div className="px-4 pb-4 space-y-1.5">
-              {[
-                { name: 'Robert Nguyen', addr: '182 Saint Peter St', time: '11 AM' },
-                { name: 'Annette Black', addr: '26096 Dougherty Pl',  time: '2 PM'  },
-              ].map((a) => (
-                <div key={a.name} className="flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-gray-50 cursor-pointer">
-                  <div className="w-1 h-9 bg-[#1a6bcc] rounded-full shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800">{a.name}</p>
-                    <p className="text-xs text-gray-400 truncate">{a.addr}</p>
-                  </div>
-                  <span className="text-xs font-semibold text-[#1a6bcc] shrink-0">{a.time}</span>
-                </div>
-              ))}
+              {todayAppointments.length === 0 ? (
+                <p className="text-xs text-gray-400 px-2 py-3">No appointments today.</p>
+              ) : (
+                todayAppointments.map((apt) => {
+                  const lead = mockLeads.find((l) => l.id === apt.leadId)
+                  return (
+                    <div key={apt.id} className="flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-gray-50 cursor-pointer">
+                      <div className="w-1 h-9 bg-[#1a6bcc] rounded-full shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800">{lead?.name ?? 'Unknown'}</p>
+                        <p className="text-xs text-gray-400 truncate">{apt.address}</p>
+                      </div>
+                      <span className="text-xs font-semibold text-[#1a6bcc] shrink-0">{apt.time}</span>
+                    </div>
+                  )
+                })
+              )}
             </div>
             <Separator />
             <div className="px-4 pb-4 pt-3">

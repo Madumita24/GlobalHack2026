@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronDown, LayoutGrid, Zap } from 'lucide-react'
+import { LayoutGrid, Zap } from 'lucide-react'
 
 interface TopHeaderProps {
   agentName: string
@@ -41,19 +41,7 @@ export default function TopHeader({ agentName }: TopHeaderProps) {
           <span className="text-xs font-medium text-[#1a6bcc]">Your AI prepared your day</span>
         </div>
 
-        {/* Dashboard selector — like "My Dashboard ▾" in Lofty */}
-        <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 border border-transparent hover:border-gray-200 transition-colors">
-          My Dashboard
-          <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-        </button>
-
-        {/* Today's Priorities dropdown — matches Lofty exactly */}
-        <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors">
-          Today&apos;s Priorities
-          <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-        </button>
-
-        {/* Grid toggle */}
+{/* Grid toggle */}
         <button className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
           <LayoutGrid className="w-4 h-4" />
         </button>

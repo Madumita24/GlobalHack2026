@@ -563,6 +563,55 @@ export const mockTasks: Task[] = [
   },
 ]
 
+// ─── Appointments ─────────────────────────────────────────────────────────────
+
+export type Appointment = {
+  id: string
+  leadId: string
+  address: string
+  time: string
+  date: string   // ISO date string e.g. '2026-04-19'
+  type: 'showing' | 'listing_appointment' | 'consultation' | 'open_house'
+}
+
+const TODAY = new Date().toISOString().split('T')[0]
+const TOMORROW = new Date(Date.now() + 86400000).toISOString().split('T')[0]
+
+export const mockAppointments: Appointment[] = [
+  {
+    id: 'apt1',
+    leadId: 'l6',
+    address: '182 Saint Peter St',
+    time: '11:00 AM',
+    date: TODAY,
+    type: 'showing',
+  },
+  {
+    id: 'apt2',
+    leadId: 'l3',
+    address: '26096 Dougherty Pl',
+    time: '2:00 PM',
+    date: TODAY,
+    type: 'showing',
+  },
+  {
+    id: 'apt3',
+    leadId: 'l8',
+    address: '2118 Thornridge Cir',
+    time: '4:30 PM',
+    date: TODAY,
+    type: 'consultation',
+  },
+  {
+    id: 'apt4',
+    leadId: 'l1',
+    address: '123 Maple Ave',
+    time: '10:00 AM',
+    date: TOMORROW,
+    type: 'listing_appointment',
+  },
+]
+
 // ─── Agent profile ────────────────────────────────────────────────────────────
 
 export const agentProfile = {

@@ -6,6 +6,7 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock,
+  Copy,
   Home,
   Loader2,
   Mail,
@@ -347,17 +348,20 @@ function ExecutionBody({
         <div className="space-y-3">
           {lead ? <LeadSummary lead={lead} /> : <MissingState label="lead" />}
           {action.type === 'call' ? (
-            <div className="rounded-xl bg-gray-50 p-3">
-              <p className="mb-2 text-xs font-semibold text-gray-700">Talking points</p>
-              <ul className="space-y-1.5">
-                {talkingPoints.slice(0, 3).map((point, index) => (
-                  <li key={index} className="flex gap-2 text-xs leading-relaxed text-gray-600">
-                    <span className="mt-0.5 text-[#1a6bcc]">·</span>
-                    <span>{point}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <>
+              <div className="rounded-xl bg-gray-50 p-3">
+                <p className="mb-2 text-xs font-semibold text-gray-700">Talking points</p>
+                <ul className="space-y-1.5">
+                  {talkingPoints.slice(0, 3).map((point, index) => (
+                    <li key={index} className="flex gap-2 text-xs leading-relaxed text-gray-600">
+                      <span className="mt-0.5 text-[#1a6bcc]">·</span>
+                      <span>{point}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <DraftMessage message={action.draftMessage} />
+            </>
           ) : (
             <DraftMessage message={action.draftMessage} />
           )}
@@ -396,11 +400,33 @@ function LeadSummary({ lead }: { lead: Lead }) {
 }
 
 function DraftMessage({ message }: { message?: string }) {
+  const [copied, setCopied] = useState(false)
+  const text = message ?? 'Hi, I wanted to follow up with the most relevant next step for your search. Are you available today?'
+
+  function handleCopy() {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
   return (
-    <div className="rounded-xl bg-gray-50 p-3">
-      <p className="mb-2 text-xs font-semibold text-gray-700">Suggested message</p>
-      <p className="whitespace-pre-line text-xs leading-relaxed text-gray-600">
-        {message ?? 'Hi, I wanted to follow up with the most relevant next step for your search. Are you available today?'}
+    <div className="rounded-xl border border-[#1a6bcc]/15 bg-blue-50/40 p-3">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5">
+          <Sparkles className="h-3 w-3 text-[#1a6bcc]" />
+          <p className="text-xs font-semibold text-[#1a6bcc]">AI-drafted message</p>
+        </div>
+        <button
+          onClick={handleCopy}
+          className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-white border border-gray-200 text-gray-500 hover:text-[#1a6bcc] hover:border-[#1a6bcc]/40 transition-colors"
+        >
+          <Copy className="h-2.5 w-2.5" />
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
+      </div>
+      <p className="whitespace-pre-line text-xs leading-relaxed text-gray-700 italic">
+        &ldquo;{text}&rdquo;
       </p>
     </div>
   )

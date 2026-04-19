@@ -369,6 +369,23 @@ export function AssistantSidebarPanel() {
             </div>
           </div>
         ))}
+
+        {/* Starter chips — only when conversation hasn't started */}
+        {messages.length === 1 && !isBusy && (
+          <div className="pt-1 space-y-2">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Try asking</p>
+            {EXAMPLE_PROMPTS.map((prompt) => (
+              <button
+                key={prompt}
+                onClick={() => submitMessage(prompt)}
+                className="w-full text-left rounded-xl border border-gray-100 bg-white px-3 py-2.5 text-xs text-gray-700 font-medium hover:border-[#1a6bcc]/40 hover:bg-blue-50/40 hover:text-[#1a6bcc] transition-all duration-150 shadow-sm"
+              >
+                <span className="text-[#1a6bcc] mr-1.5">→</span>{prompt}
+              </button>
+            ))}
+          </div>
+        )}
+
         {isBusy && (
           <div className="flex items-center gap-2 text-xs text-gray-400">
             <Loader2 className="h-3.5 w-3.5 animate-spin text-[#1a6bcc]" />

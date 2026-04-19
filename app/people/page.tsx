@@ -3,6 +3,9 @@ import {
   ArrowLeft,
   ChevronRight,
   Flame,
+  Mail,
+  MessageSquare,
+  Phone,
   RotateCcw,
   Search,
   Sparkles,
@@ -207,7 +210,7 @@ function LeadCard({ lead }: { lead: Lead }) {
   return (
     <div
       data-assistant-id={`lead:${lead.id}`}
-      className="rounded-xl border border-gray-100 p-3.5 transition-colors hover:border-[#1a6bcc]/30 hover:bg-blue-50/30"
+      className="group rounded-xl border border-gray-100 p-3.5 transition-all hover:border-[#1a6bcc]/30 hover:bg-blue-50/30 hover:shadow-sm"
     >
       <div className="mb-3 flex items-start gap-3">
         <LeadAvatar lead={lead} color="bg-rose-100 text-rose-600" />
@@ -226,14 +229,24 @@ function LeadCard({ lead }: { lead: Lead }) {
           </span>
         ))}
       </div>
+      {/* Quick-action toolbar — reveals on hover */}
+      <div className="mt-3 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+        <button className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-600 text-[11px] font-semibold hover:bg-blue-100 transition-colors">
+          <Phone className="w-3 h-3" /> Call
+        </button>
+        <button className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-violet-50 text-violet-600 text-[11px] font-semibold hover:bg-violet-100 transition-colors">
+          <MessageSquare className="w-3 h-3" /> Text
+        </button>
+        <button className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-600 text-[11px] font-semibold hover:bg-emerald-100 transition-colors">
+          <Mail className="w-3 h-3" /> Email
+        </button>
+      </div>
       {nextAction && (
         <div
           data-assistant-id={nextAction.propertyId ? `property:${nextAction.propertyId}` : undefined}
-          className="mt-3 rounded-lg bg-[#1a6bcc]/5 p-2.5"
+          className="mt-2 rounded-lg bg-[#1a6bcc]/5 p-2.5"
         >
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#1a6bcc]">
-            Recommended
-          </p>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-[#1a6bcc]">Recommended</p>
           <p className="mt-0.5 text-xs font-medium text-gray-700">{nextAction.title}</p>
         </div>
       )}
