@@ -2,7 +2,7 @@
 
 import {
   Phone, MessageSquare, Mail, Send, Clock, ArrowRight,
-  Sparkles, ChevronRight, CheckCircle2, Volume2, AlertTriangle, Loader2,
+  Sparkles, ChevronRight, CheckCircle2, Volume2, AlertTriangle, Loader2, X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { RecommendedAction } from '@/types/action'
@@ -41,11 +41,15 @@ export interface ActionCardProps {
   lead?: Lead | null
   property?: Property | null
   isSelected?: boolean
+  isChecked?: boolean
   isDone?: boolean
   isSpeaking?: boolean
   isVoiceLoading?: boolean
+  onToggleSelect?: (action: RecommendedAction) => void
   onWhyThis: (action: RecommendedAction) => void
   onExecute: (action: RecommendedAction) => void
+  onMarkDone?: (action: RecommendedAction) => void
+  onRemove?: (action: RecommendedAction) => void
   onSnooze?: (action: RecommendedAction) => void
   onHearAction?: (action: RecommendedAction) => void
 }
@@ -58,11 +62,15 @@ export function ActionCard({
   lead,
   property,
   isSelected = false,
+  isChecked = false,
   isDone = false,
   isSpeaking = false,
   isVoiceLoading = false,
+  onToggleSelect,
   onWhyThis,
   onExecute,
+  onMarkDone,
+  onRemove,
   onSnooze,
   onHearAction,
 }: ActionCardProps) {
@@ -85,6 +93,21 @@ export function ActionCard({
 
         {/* ── Header row ──────────────────────────────────────────────────── */}
         <div className="flex items-start gap-3">
+          {onToggleSelect && (
+            <button
+              type="button"
+              onClick={() => onToggleSelect(action)}
+              className={[
+                'mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors',
+                isChecked
+                  ? 'border-[#1a6bcc] bg-[#1a6bcc] text-white'
+                  : 'border-gray-200 bg-white text-transparent hover:border-[#1a6bcc]/60',
+              ].join(' ')}
+              aria-label={isChecked ? 'Deselect action' : 'Select action'}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+            </button>
+          )}
 
           {/* Rank circle */}
           <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 mt-0.5 ${urg.rankBg}`}>
@@ -191,6 +214,29 @@ export function ActionCard({
               onClick={() => onSnooze(action)}
             >
               Snooze
+            </Button>
+          )}
+
+          {onMarkDone && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+              onClick={() => onMarkDone(action)}
+            >
+              Mark done
+            </Button>
+          )}
+
+          {onRemove && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs text-gray-400 hover:bg-red-50 hover:text-red-600"
+              onClick={() => onRemove(action)}
+            >
+              <X className="h-3 w-3" />
+              Remove
             </Button>
           )}
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import {
   Sparkles, TrendingUp, Clock, Users, Phone, Mail, MessageSquare,
@@ -22,6 +22,35 @@ type PanelContent =
   | { kind: 'transaction'; data: Transaction }
   | { kind: 'action'; data: RecommendedAction }
   | null
+
+type OverviewRange = 'today' | 'weekly'
+
+function readStoredActionIds(key: string) {
+  if (typeof window === 'undefined') return new Set<string>()
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(key) ?? '[]') as unknown
+    return new Set(Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [])
+  } catch {
+    return new Set<string>()
+  }
+}
+
+function isWithinNextDays(dateString: string | undefined, days: number) {
+  if (!dateString) return false
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const date = new Date(`${dateString.slice(0, 10)}T12:00:00`)
+  if (Number.isNaN(date.getTime())) return false
+
+  const diff = date.getTime() - today.getTime()
+  return diff >= 0 && diff <= days * 24 * 60 * 60 * 1000
+}
+
+function isWeeklyTask(task: Task) {
+  if (!task.scheduledFor) return true
+  return isWithinNextDays(task.scheduledFor, 7)
+}
 
 // ── Inline helpers ────────────────────────────────────────────────────────────
 
@@ -121,12 +150,14 @@ function TodayTodoPanel({
   doneTaskIds,
   urgentTransactions,
   nextAction,
+  rangeLabel,
   onToggleTask,
 }: {
   tasks: Task[]
   doneTaskIds: Set<string>
   urgentTransactions: Transaction[]
   nextAction: RecommendedAction | null
+  rangeLabel: 'Today' | 'This Week'
   onToggleTask: (taskId: string) => void
 }) {
   const { data } = useAppData()
@@ -145,14 +176,14 @@ function TodayTodoPanel({
           <div className="mb-2 flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4 text-[#1a6bcc]" />
             <span className="text-xs font-semibold uppercase tracking-wider text-[#1a6bcc]">
-              Today&apos;s To-Do
+              {rangeLabel}&apos;s To-Do
             </span>
             <span className="text-[10px] text-gray-400">· synced with your AI action plan</span>
           </div>
           <h1 className="text-xl font-bold leading-tight text-gray-900">
             {incompleteTasks.length === 0
               ? 'You are caught up on scheduled tasks.'
-              : `${incompleteTasks.length} tasks need your attention today.`}
+              : `${incompleteTasks.length} tasks need your attention ${rangeLabel === 'Today' ? 'today' : 'this week'}.`}
           </h1>
           <p className="mt-1 text-sm text-gray-500">
             {nextAction
@@ -288,7 +319,19 @@ export default function DashboardPage() {
   const mockAppointments = data.appointments
   const topActions = data.actions
   const [panel, setPanel] = useState<PanelContent>(null)
-  const [doneTaskIds, setDoneTaskIds] = useState<Set<string>>(new Set())
+  const [overviewRange, setOverviewRange] = useState<OverviewRange>(() =>
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('range') === 'weekly'
+      ? 'weekly'
+      : 'today',
+  )
+  const [completedActionIds, setCompletedActionIds] = useState<Set<string>>(() => readStoredActionIds('lofty:completedActions'))
+  const [hiddenActionIds, setHiddenActionIds] = useState<Set<string>>(() => readStoredActionIds('lofty:hiddenActions'))
+  const [doneTaskIds, setDoneTaskIds] = useState<Set<string>>(
+    () => new Set(Array.from(readStoredActionIds('lofty:completedActions')).map((id) => `task:${id}`)),
+  )
+  const activeActions = topActions.filter((action) =>
+    action.status !== 'done' && !completedActionIds.has(action.id) && !hiddenActionIds.has(action.id)
+  )
 
   // Derived data for context widgets
   const hotLeads          = mockLeads.filter((l) => l.stage === 'hot' || l.score >= 70)
@@ -297,7 +340,67 @@ export default function DashboardPage() {
   const urgentTx          = mockTransactions.filter((t) => t.daysUntilDeadline <= 3)
   const backOnMarket      = mockProperties.filter((p) => p.status === 'back_on_market')
   const today             = new Date().toISOString().split('T')[0]
-  const todayAppointments = mockAppointments.filter((a) => a.date === today)
+  const isWeeklyOverview  = overviewRange === 'weekly'
+  const rangeLabel        = isWeeklyOverview ? 'This Week' : 'Today'
+  const rangeLower        = isWeeklyOverview ? 'this week' : 'today'
+  const rangeTasks        = isWeeklyOverview ? mockTasks.filter(isWeeklyTask) : mockTasks
+  const rangeActions      = isWeeklyOverview ? activeActions : activeActions.slice(0, 5)
+  const rangeLeads        = isWeeklyOverview ? mockLeads.filter((l) => l.lastContactDaysAgo <= 7) : mockLeads.filter((l) => l.lastContactDaysAgo === 0)
+  const rangeHotLeads     = hotLeads
+  const rangeUrgentTx     = isWeeklyOverview ? mockTransactions.filter((t) => t.daysUntilDeadline <= 7) : urgentTx
+  const rangeAppointments = mockAppointments.filter((a) => isWeeklyOverview ? isWithinNextDays(a.date, 7) : a.date === today)
+  const weeklyListings    = isWeeklyOverview ? mockProperties.filter((p) => p.status === 'active' || p.status === 'back_on_market') : backOnMarket
+
+  function changeOverviewRange(range: OverviewRange) {
+    setOverviewRange(range)
+    const url = range === 'weekly' ? '/dashboard?range=weekly' : '/dashboard'
+    window.history.replaceState(null, '', url)
+  }
+
+  useEffect(() => {
+    const handleActionCompleted = (event: Event) => {
+      const actionId = (event as CustomEvent<{ actionId?: string }>).detail?.actionId
+      if (!actionId) return
+
+      setCompletedActionIds((prev) => new Set([...prev, actionId]))
+      setDoneTaskIds((prev) => new Set([...prev, `task:${actionId}`]))
+    }
+    const handleActionHidden = (event: Event) => {
+      const actionId = (event as CustomEvent<{ actionId?: string }>).detail?.actionId
+      if (!actionId) return
+
+      setHiddenActionIds((prev) => new Set([...prev, actionId]))
+    }
+    const handleActionRestored = (event: Event) => {
+      const actionId = (event as CustomEvent<{ actionId?: string }>).detail?.actionId
+      if (!actionId) return
+
+      setCompletedActionIds((prev) => {
+        const next = new Set(prev)
+        next.delete(actionId)
+        return next
+      })
+      setHiddenActionIds((prev) => {
+        const next = new Set(prev)
+        next.delete(actionId)
+        return next
+      })
+      setDoneTaskIds((prev) => {
+        const next = new Set(prev)
+        next.delete(`task:${actionId}`)
+        return next
+      })
+    }
+
+    window.addEventListener('lofty:action-completed', handleActionCompleted)
+    window.addEventListener('lofty:action-hidden', handleActionHidden)
+    window.addEventListener('lofty:action-restored', handleActionRestored)
+    return () => {
+      window.removeEventListener('lofty:action-completed', handleActionCompleted)
+      window.removeEventListener('lofty:action-hidden', handleActionHidden)
+      window.removeEventListener('lofty:action-restored', handleActionRestored)
+    }
+  }, [])
 
   const toggleTaskDone = useCallback((taskId: string) => {
     setDoneTaskIds((prev) => {
@@ -311,52 +414,82 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-1 min-h-0">
       <main className="flex-1 overflow-y-auto px-6 py-5 min-w-0">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Overview</p>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold text-gray-900">{rangeLabel} pipeline snapshot</h2>
+              <Badge className={[
+                'border-0',
+                isWeeklyOverview ? 'bg-[#1a6bcc] text-white' : 'bg-blue-50 text-[#1a6bcc]',
+              ].join(' ')}
+              >
+                {isWeeklyOverview ? 'Weekly view active' : 'Today view active'}
+              </Badge>
+            </div>
+          </div>
+          <div className="flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
+            {(['today', 'weekly'] as const).map((item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => changeOverviewRange(item)}
+                className={[
+                  'rounded-lg px-4 py-1.5 text-xs font-semibold capitalize transition-colors',
+                  overviewRange === item ? 'bg-[#1a6bcc] text-white' : 'text-gray-500 hover:bg-gray-50',
+                ].join(' ')}
+              >
+                {item === 'today' ? 'Today' : 'Weekly'}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* ── Stat Strip ────────────────────────────────────────────────── */}
         <div className="grid grid-cols-4 gap-3 mb-6">
           {[
             {
-              label: 'New Leads Today',
-              value: mockLeads.filter((l) => l.lastContactDaysAgo === 0).length,
-              sub: '1 untouched',
+              label: isWeeklyOverview ? 'New Leads This Week' : 'New Leads Today',
+              value: rangeLeads.length,
+              sub: isWeeklyOverview ? 'Last 7 days' : '1 untouched',
               icon: Users,
               color: 'text-blue-600',
               bg: 'bg-blue-50',
               ring: 'hover:ring-blue-200',
-              delta: '+2 from yesterday',
+              delta: isWeeklyOverview ? '+5 this week' : '+2 from yesterday',
               deltaUp: true,
             },
             {
               label: 'High Interest',
-              value: hotLeads.length,
+              value: rangeHotLeads.length,
               sub: 'Score ≥ 70',
               icon: Flame,
               color: 'text-rose-600',
               bg: 'bg-rose-50',
               ring: 'hover:ring-rose-200',
-              delta: '+1 since morning',
+              delta: isWeeklyOverview ? '+3 this week' : '+1 since morning',
               deltaUp: true,
             },
             {
               label: 'Tx Deadlines',
-              value: urgentTx.length,
-              sub: 'Next 72 hours',
+              value: rangeUrgentTx.length,
+              sub: isWeeklyOverview ? 'Next 7 days' : 'Next 72 hours',
               icon: AlertTriangle,
               color: 'text-orange-600',
               bg: 'bg-orange-50',
               ring: 'hover:ring-orange-200',
-              delta: 'Same as yesterday',
+              delta: isWeeklyOverview ? 'Weekly watchlist' : 'Same as yesterday',
               deltaUp: null,
             },
             {
-              label: 'Back on Market',
-              value: backOnMarket.length,
-              sub: 'Match your buyers',
+              label: isWeeklyOverview ? 'Weekly Listings' : 'Back on Market',
+              value: weeklyListings.length,
+              sub: isWeeklyOverview ? 'Active + back on market' : 'Match your buyers',
               icon: RotateCcw,
               color: 'text-emerald-600',
               bg: 'bg-emerald-50',
               ring: 'hover:ring-emerald-200',
-              delta: '+3 new listings',
+              delta: isWeeklyOverview ? '+8 listing updates' : '+3 new listings',
               deltaUp: true,
             },
           ].map((c) => (
@@ -387,10 +520,11 @@ export default function DashboardPage() {
 
         {/* ── Today's To-Do Command Panel ───────────────────────────────── */}
         <TodayTodoPanel
-          tasks={mockTasks}
+          tasks={rangeTasks}
           doneTaskIds={doneTaskIds}
-          urgentTransactions={urgentTx}
-          nextAction={topActions[0] ?? null}
+          urgentTransactions={rangeUrgentTx}
+          nextAction={rangeActions[0] ?? null}
+          rangeLabel={rangeLabel}
           onToggleTask={toggleTaskDone}
         />
 
@@ -402,17 +536,17 @@ export default function DashboardPage() {
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm" data-assistant-id="section:opportunities">
               <SectionHeader
                 icon={<TrendingUp className="w-4 h-4" />}
-                title="Today's Opportunities"
-                count={hotLeads.length + backToSite.length}
+                title={`${rangeLabel}'s Opportunities`}
+                count={rangeHotLeads.length + backToSite.length}
                 countColor="bg-rose-50 text-rose-600"
                 href="/people"
               />
               <div className="grid grid-cols-4 gap-px bg-gray-100 mx-5 mb-5 rounded-xl overflow-hidden">
                 {[
-                  { label: 'High Interest',  value: hotLeads.length,     color: 'text-rose-600'    },
+                  { label: 'High Interest',  value: rangeHotLeads.length,     color: 'text-rose-600'    },
                   { label: 'Back to Site',   value: backToSite.length,   color: 'text-amber-600'   },
                   { label: 'Sell Request',   value: 1,                   color: 'text-violet-600'  },
-                  { label: 'Back on Market', value: backOnMarket.length,  color: 'text-emerald-600' },
+                  { label: isWeeklyOverview ? 'Weekly Listings' : 'Back on Market', value: weeklyListings.length,  color: 'text-emerald-600' },
                 ].map((s) => (
                   <div key={s.label} className="bg-white px-3 py-2.5 text-center">
                     <p className={`text-lg font-bold ${s.color}`}>{s.value}</p>
@@ -421,7 +555,7 @@ export default function DashboardPage() {
                 ))}
               </div>
               <div className="px-4 pb-4 space-y-1">
-                {hotLeads.map((lead) => (
+                {rangeHotLeads.map((lead) => (
                   <button
                     key={lead.id}
                     onClick={() => setPanel({ kind: 'lead', data: lead })}
@@ -453,12 +587,12 @@ export default function DashboardPage() {
             <SectionHeader
               icon={<Clock className="w-4 h-4" />}
               title="Transactions"
-              count={mockTransactions.length}
+              count={isWeeklyOverview ? rangeUrgentTx.length : mockTransactions.length}
               countColor="bg-orange-50 text-orange-600"
               href="/transactions"
             />
             <div className="px-4 pb-4 space-y-2">
-              {mockTransactions.map((tx) => (
+              {(isWeeklyOverview ? rangeUrgentTx : mockTransactions).map((tx) => (
                 <button
                   key={tx.id}
                   onClick={() => setPanel({ kind: 'transaction', data: tx })}
@@ -483,7 +617,7 @@ export default function DashboardPage() {
           {/* Deadline countdown strip */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-4 py-3 space-y-2">
             <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Next deadlines</p>
-            {mockTransactions.slice(0, 3).map((tx) => (
+            {(isWeeklyOverview ? rangeUrgentTx : mockTransactions).slice(0, 3).map((tx) => (
               <div key={tx.id} className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
@@ -505,16 +639,16 @@ export default function DashboardPage() {
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
             <SectionHeader
               icon={<CalendarDays className="w-4 h-4" />}
-              title="Today's Appointments"
-              count={todayAppointments.length}
+              title={`${rangeLabel}'s Appointments`}
+              count={rangeAppointments.length}
               countColor="bg-blue-50 text-blue-600"
               href="/calendar"
             />
             <div className="px-4 pb-4 space-y-1.5">
-              {todayAppointments.length === 0 ? (
-                <p className="text-xs text-gray-400 px-2 py-3">No appointments today.</p>
+              {rangeAppointments.length === 0 ? (
+                <p className="text-xs text-gray-400 px-2 py-3">No appointments {rangeLower}.</p>
               ) : (
-                todayAppointments.map((apt) => {
+                rangeAppointments.map((apt) => {
                   const lead = mockLeads.find((l) => l.id === apt.leadId)
                   return (
                     <div key={apt.id} className="flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-gray-50 cursor-pointer">
@@ -531,12 +665,14 @@ export default function DashboardPage() {
             </div>
             <Separator />
             <div className="px-4 pb-4 pt-3">
-              <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-3">Hot Sheets</p>
+              <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-3">
+                {isWeeklyOverview ? 'Weekly Listings' : 'Hot Sheets'}
+              </p>
               <div className="space-y-2">
                 {[
-                  { label: 'Upcoming Open House', count: 758, color: 'text-[#1a6bcc]'   },
-                  { label: 'Back on Market',       count: 20,  color: 'text-emerald-600' },
-                  { label: 'Price Reduced',         count: 120, color: 'text-amber-600'  },
+                  { label: 'Upcoming Open House', count: isWeeklyOverview ? 18 : 758, color: 'text-[#1a6bcc]'   },
+                  { label: 'Back on Market',       count: isWeeklyOverview ? backOnMarket.length : 20,  color: 'text-emerald-600' },
+                  { label: 'Price Reduced',         count: isWeeklyOverview ? 11 : 120, color: 'text-amber-600'  },
                 ].map((s) => (
                   <div key={s.label} className="flex items-center justify-between py-0.5 hover:bg-gray-50 rounded-lg px-2 cursor-pointer transition-colors">
                     <div className="flex items-center gap-2">

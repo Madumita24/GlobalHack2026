@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft,
@@ -29,6 +30,17 @@ export default function PeoplePage() {
   const backToSite = mockLeads.filter((lead) => lead.intentSignals.includes('back_to_site'))
   const coolingLeads = mockLeads.filter((lead) => lead.lastContactDaysAgo >= 14)
   const newLeads = mockLeads.filter((lead) => lead.stage === 'new' || lead.lastContactDaysAgo === 0)
+  const [leadSearch, setLeadSearch] = useState('')
+  const filteredLeads = useMemo(() => {
+    const query = leadSearch.trim().toLowerCase()
+    if (!query) return mockLeads
+
+    return mockLeads.filter((lead) =>
+      lead.name.toLowerCase().includes(query) ||
+      lead.email.toLowerCase().includes(query) ||
+      lead.source.toLowerCase().includes(query)
+    )
+  }, [leadSearch, mockLeads])
 
   return (
     <AppShell>
@@ -125,11 +137,24 @@ export default function PeoplePage() {
         </section>
 
         <section className="rounded-2xl border border-gray-100 bg-white shadow-sm">
-          <SectionTitle
-            icon={<Users className="h-4 w-4" />}
-            title="All Leads"
-            count={mockLeads.length}
-          />
+          <div className="flex items-center justify-between gap-4 px-5 pb-4 pt-5">
+            <div className="flex items-center gap-2.5">
+              <span className="text-gray-400"><Users className="h-4 w-4" /></span>
+              <span className="text-sm font-semibold text-gray-900">All Leads</span>
+              <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-bold text-[#1a6bcc]">
+                {filteredLeads.length}
+              </span>
+            </div>
+            <div className="relative w-full max-w-xs">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+              <input
+                value={leadSearch}
+                onChange={(event) => setLeadSearch(event.target.value)}
+                placeholder="Search lead name..."
+                className="h-8 w-full rounded-lg border border-gray-200 bg-white pl-8 pr-3 text-xs outline-none transition-colors placeholder:text-gray-400 focus:border-[#1a6bcc] focus:ring-2 focus:ring-[#1a6bcc]/10"
+              />
+            </div>
+          </div>
           <div className="px-4 pb-4">
             <div className="overflow-hidden rounded-xl border border-gray-100">
               <div className="grid grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr_1.4fr_0.2fr] gap-3 bg-gray-50 px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
@@ -140,9 +165,15 @@ export default function PeoplePage() {
                 <span>Next Best Move</span>
                 <span />
               </div>
-              {mockLeads.map((lead) => (
+              {filteredLeads.map((lead) => (
                 <LeadRow key={lead.id} lead={lead} />
               ))}
+              {filteredLeads.length === 0 && (
+                <div className="border-t border-gray-100 px-4 py-8 text-center">
+                  <p className="text-sm font-medium text-gray-700">No leads found</p>
+                  <p className="mt-1 text-xs text-gray-400">Try a different name or email.</p>
+                </div>
+              )}
             </div>
           </div>
         </section>

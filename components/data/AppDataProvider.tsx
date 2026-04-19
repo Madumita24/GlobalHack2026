@@ -7,6 +7,7 @@ import type { AppData } from '@/types/app-data'
 type AppDataContextValue = {
   data: AppData
   loading: boolean
+  reload: () => Promise<void>
 }
 
 const AppDataContext = createContext<AppDataContextValue | null>(null)
@@ -40,10 +41,22 @@ export default function AppDataProvider({ children }: { children: React.ReactNod
   }, [reloadData])
 
   useEffect(() => {
+    const handleRefresh = () => {
+      void reloadData()
+    }
+
+    window.addEventListener('lofty:app-data-refresh', handleRefresh)
+    return () => window.removeEventListener('lofty:app-data-refresh', handleRefresh)
+  }, [reloadData])
+
+  useEffect(() => {
     let cancelled = false
+    let inFlight = false
 
     async function syncGmailReplies() {
-      if (document.visibilityState === 'hidden') return
+      if (cancelled || inFlight || document.visibilityState === 'hidden') return
+      inFlight = true
+
       try {
         const response = await fetch('/api/gmail/sync', {
           method: 'POST',
@@ -68,22 +81,38 @@ export default function AppDataProvider({ children }: { children: React.ReactNod
           await reloadData(() => cancelled)
         }
       } catch (error) {
-        console.error('[GmailSyncPoll]', error)
+        if (!isTransientFetchError(error)) {
+          console.error('[GmailSyncPoll]', error)
+        }
+      } finally {
+        inFlight = false
       }
     }
 
     const timer = window.setInterval(syncGmailReplies, 60_000)
-    window.setTimeout(syncGmailReplies, 5_000)
+    const initialTimer = window.setTimeout(syncGmailReplies, 5_000)
 
     return () => {
       cancelled = true
       window.clearInterval(timer)
+      window.clearTimeout(initialTimer)
     }
   }, [reloadData])
 
-  const value = useMemo(() => ({ data, loading }), [data, loading])
+  const reload = useCallback(() => reloadData(), [reloadData])
+  const value = useMemo(() => ({ data, loading, reload }), [data, loading, reload])
 
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>
+}
+
+function isTransientFetchError(error: unknown) {
+  if (!(error instanceof Error)) return false
+  return (
+    error.name === 'AbortError' ||
+    error.message === 'Load failed' ||
+    error.message === 'Failed to fetch' ||
+    error.message.includes('NetworkError')
+  )
 }
 
 export function useAppData() {

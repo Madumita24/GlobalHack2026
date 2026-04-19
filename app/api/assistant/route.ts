@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAssistantDecision } from '@/lib/ai/assistant'
 import { getEmailErrorMessage } from '@/lib/email/errors'
 import { sendLeadEmail } from '@/lib/email/ses'
-import type { AssistantRequest } from '@/types/assistant'
+import type { AssistantConversationMessage, AssistantRequest } from '@/types/assistant'
 
 export async function POST(req: NextRequest) {
   let body: Partial<AssistantRequest>
@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
     recentExecutedActionIds: Array.isArray(body.recentExecutedActionIds)
       ? body.recentExecutedActionIds.filter((id): id is string => typeof id === 'string')
       : [],
+    conversationHistory: sanitizeConversationHistory(body.conversationHistory),
   })
   const completedDecision = await completeAssistantCommunication(decision)
 
@@ -32,6 +33,25 @@ export async function POST(req: NextRequest) {
       'Cache-Control': 'no-store',
     },
   })
+}
+
+function sanitizeConversationHistory(value: unknown): AssistantConversationMessage[] {
+  if (!Array.isArray(value)) return []
+
+  return value
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null
+      const candidate = item as Partial<AssistantConversationMessage>
+      if (candidate.role !== 'user' && candidate.role !== 'assistant') return null
+      const content = typeof candidate.content === 'string' ? candidate.content.trim() : ''
+      if (!content) return null
+      return {
+        role: candidate.role,
+        content: content.slice(0, 800),
+      }
+    })
+    .filter((item): item is AssistantConversationMessage => item !== null)
+    .slice(-8)
 }
 
 async function completeAssistantCommunication(decision: Awaited<ReturnType<typeof getAssistantDecision>>) {

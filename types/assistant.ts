@@ -28,12 +28,14 @@ export type AssistantRequest = {
   message: string
   currentPath: string
   recentExecutedActionIds?: string[]
+  conversationHistory?: AssistantConversationMessage[]
 }
 
 export type AssistantDecision = {
   intent: AssistantIntent
   targetRoute: string | null
   targetId: string | null
+  targetDate?: string | null
   highlight: boolean
   voiceResponse: string
   confidence: number
@@ -57,6 +59,11 @@ export type AssistantCommunication = {
 
 export type AssistantChatMessage = {
   id: string
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export type AssistantConversationMessage = {
   role: 'user' | 'assistant'
   content: string
 }

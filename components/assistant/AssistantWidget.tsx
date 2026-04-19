@@ -23,7 +23,12 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useVoice } from '@/hooks/useVoice'
-import type { AssistantChatMessage, AssistantDecision, AssistantStatus } from '@/types/assistant'
+import type {
+  AssistantChatMessage,
+  AssistantConversationMessage,
+  AssistantDecision,
+  AssistantStatus,
+} from '@/types/assistant'
 
 const EXAMPLE_PROMPTS = [
   'What should I do first?',
@@ -118,6 +123,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
       setOpen(true)
       setInput('')
       setStatus('thinking')
+      const conversationHistory = toConversationHistory(messages)
       setMessages((prev) => [
         ...prev,
         { id: crypto.randomUUID(), role: 'user', content: trimmed },
@@ -131,6 +137,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
             message: trimmed,
             currentPath: pathname,
             recentExecutedActionIds: getRecentExecutedActionIds(),
+            conversationHistory,
           }),
         })
 
@@ -156,9 +163,8 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
 
         if (decision.targetRoute) {
           setStatus('navigating')
-          const href = decision.highlight && decision.targetId
-            ? `${decision.targetRoute}?assistantHighlight=${encodeURIComponent(decision.targetId)}`
-            : decision.targetRoute
+          const href = buildAssistantHref(decision)
+          syncAssistantCalendarDate(decision)
           router.push(href)
           window.setTimeout(() => {
             if (decision.targetId) highlightTarget(decision.targetId)
@@ -184,7 +190,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
         ])
       }
     },
-    [isBusy, pathname, router, speak],
+    [isBusy, messages, pathname, router, speak],
   )
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -460,6 +466,41 @@ function getRecentExecutedActionIds() {
   } catch {
     return []
   }
+}
+
+function toConversationHistory(messages: AssistantChatMessage[]): AssistantConversationMessage[] {
+  return messages
+    .filter((message) => message.id !== 'welcome')
+    .slice(-8)
+    .map((message) => ({
+      role: message.role,
+      content: message.content,
+    }))
+}
+
+function buildAssistantHref(decision: AssistantDecision) {
+  if (!decision.targetRoute) return '/'
+
+  const params = new URLSearchParams()
+  if (decision.highlight && decision.targetId) {
+    params.set('assistantHighlight', decision.targetId)
+  }
+  if (decision.targetRoute === '/calendar' && decision.targetDate) {
+    params.set('assistantDate', decision.targetDate)
+  }
+
+  const query = params.toString()
+  return query ? `${decision.targetRoute}?${query}` : decision.targetRoute
+}
+
+function syncAssistantCalendarDate(decision: AssistantDecision) {
+  if (typeof window === 'undefined') return
+  if (decision.targetRoute !== '/calendar' || !decision.targetDate) return
+
+  window.sessionStorage.setItem('lofty:assistantCalendarDate', decision.targetDate)
+  window.dispatchEvent(new CustomEvent('lofty:calendar-date', {
+    detail: { date: decision.targetDate },
+  }))
 }
 
 function highlightTarget(targetId: string) {

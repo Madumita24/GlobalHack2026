@@ -7,7 +7,7 @@ import { Search, Bell, HelpCircle, Settings, Phone, Inbox, Sparkles } from 'luci
 import { cn } from '@/lib/utils'
 
 const navLinks = [
-  { label: 'CRM', href: '/people', activeOn: ['/people', '/calendar'] },
+  { label: 'CRM', href: '/people', activeOn: ['/people', '/calendar', '/tasks'] },
   { label: 'Sales', href: '/transactions' },
   { label: 'Marketing', href: '/marketing' },
   { label: 'Content', href: '/content' },

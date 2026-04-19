@@ -1,12 +1,14 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   AlertTriangle,
   ArrowLeft,
   Bot,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Mail,
   MessageSquare,
@@ -59,14 +61,29 @@ export default function CalendarPage() {
   const { data } = useAppData()
   const [view, setView] = useState<CalendarView>('day')
   const today = useMemo(() => getTodayDateString(), [])
-  const weekDays = useMemo(() => getWeekDays(today), [today])
-  const monthDays = useMemo(() => getMonthDays(today), [today])
+  const [selectedDate, setSelectedDate] = useState(() => getInitialCalendarDate(today))
+  const weekDays = useMemo(() => getWeekDays(selectedDate), [selectedDate])
+  const monthDays = useMemo(() => getMonthDays(selectedDate), [selectedDate])
   const calendar = useMemo(
-    () => buildCalendarEvents(data.tasks, data.leads, data.transactions, today),
-    [data.leads, data.tasks, data.transactions, today],
+    () => buildCalendarEvents(data.tasks, data.leads, data.transactions, selectedDate),
+    [data.leads, data.tasks, data.transactions, selectedDate],
   )
   const conflicts = calendar.filter((event) => event.conflict || event.outsideAvailability)
   const taskEvents = calendar.filter((event) => event.source === 'task')
+  const shiftSelectedDate = (direction: -1 | 1) => {
+    setSelectedDate((current) => shiftCalendarDate(current, view, direction))
+  }
+
+  useEffect(() => {
+    const handleAssistantDate = (event: Event) => {
+      const detail = (event as CustomEvent<{ date?: string }>).detail
+      const nextDate = getValidDateParam(detail?.date ?? null)
+      if (nextDate) setSelectedDate(nextDate)
+    }
+
+    window.addEventListener('lofty:calendar-date', handleAssistantDate)
+    return () => window.removeEventListener('lofty:calendar-date', handleAssistantDate)
+  }, [])
 
   return (
     <AppShell>
@@ -122,17 +139,42 @@ export default function CalendarPage() {
           >
             <div className="flex items-center justify-between border-b border-gray-100 px-6 py-5">
               <div>
-                <p className="text-sm font-bold text-gray-900">{formatDateHeading(today)}</p>
+                <p className="text-sm font-bold text-gray-900">{formatDateHeading(selectedDate)}</p>
                 <p className="text-xs text-gray-400">AI calendar draft for James Carter</p>
               </div>
-              <Badge className="border-0 bg-emerald-50 text-emerald-700">
-                Agent availability applied
-              </Badge>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => shiftSelectedDate(-1)}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-[#1a6bcc]"
+                  aria-label="Previous date"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate(today)}
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50 hover:text-[#1a6bcc]"
+                >
+                  Today
+                </button>
+                <button
+                  type="button"
+                  onClick={() => shiftSelectedDate(1)}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-[#1a6bcc]"
+                  aria-label="Next date"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+                <Badge className="border-0 bg-emerald-50 text-emerald-700">
+                  Agent availability applied
+                </Badge>
+              </div>
             </div>
 
-            {view === 'day' && <DayView events={calendar} selectedDate={today} />}
-            {view === 'week' && <WeekView events={calendar} selectedDate={today} weekDays={weekDays} />}
-            {view === 'month' && <MonthView events={calendar} selectedDate={today} monthDays={monthDays} />}
+            {view === 'day' && <DayView events={calendar} selectedDate={selectedDate} />}
+            {view === 'week' && <WeekView events={calendar} selectedDate={selectedDate} weekDays={weekDays} />}
+            {view === 'month' && <MonthView events={calendar} selectedDate={selectedDate} monthDays={monthDays} />}
           </section>
 
           <div
@@ -294,6 +336,21 @@ function getTodayDateString() {
   return dateToDateString(new Date())
 }
 
+function getInitialCalendarDate(today: string) {
+  if (typeof window === 'undefined') return today
+
+  const params = new URLSearchParams(window.location.search)
+  return getValidDateParam(params.get('assistantDate')) ||
+    getValidDateParam(window.sessionStorage.getItem('lofty:assistantCalendarDate')) ||
+    today
+}
+
+function getValidDateParam(value: string | null) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
+  const date = dateStringToLocalDate(value)
+  return Number.isFinite(date.getTime()) ? value : null
+}
+
 function getWeekDays(selectedDate: string): WeekDay[] {
   const selected = dateStringToLocalDate(selectedDate)
   const monday = new Date(selected)
@@ -330,6 +387,18 @@ function getMonthDays(selectedDate: string): MonthDay[] {
 function addDays(dateString: string, days: number) {
   const date = dateStringToLocalDate(dateString)
   date.setDate(date.getDate() + days)
+  return dateToDateString(date)
+}
+
+function shiftCalendarDate(dateString: string, view: CalendarView, direction: -1 | 1) {
+  const date = dateStringToLocalDate(dateString)
+
+  if (view === 'month') {
+    date.setMonth(date.getMonth() + direction)
+    return dateToDateString(date)
+  }
+
+  date.setDate(date.getDate() + (view === 'week' ? direction * 7 : direction))
   return dateToDateString(date)
 }
 

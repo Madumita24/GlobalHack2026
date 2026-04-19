@@ -2,13 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { CalendarDays, LayoutDashboard, Sun, Sparkles, Users } from 'lucide-react'
+import { CalendarDays, LayoutDashboard, ListTodo, Sun, Sparkles, Users } from 'lucide-react'
 import { AssistantSidebarPanel, useAssistant } from '@/components/assistant/AssistantWidget'
 import { cn } from '@/lib/utils'
 
 const crmItems = [
   { label: 'People', href: '/people', icon: Users, desc: 'Leads & contacts' },
   { label: 'Calendar', href: '/calendar', icon: CalendarDays, desc: 'AI scheduled tasks' },
+  { label: 'Tasks', href: '/tasks', icon: ListTodo, desc: 'Follow-ups & reminders' },
 ]
 
 const aiItems = [

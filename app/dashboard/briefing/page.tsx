@@ -1,36 +1,102 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { Sparkles, CheckCircle2 } from 'lucide-react'
+import { Sparkles, CheckCircle2, ChevronDown, RotateCcw, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import DetailPanel from '@/components/layout/DetailPanel'
 import { BriefingCard } from '@/components/dashboard/BriefingCard'
 import { ActionCard } from '@/components/dashboard/ActionCard'
 import { ActionExecutionDialog } from '@/components/dashboard/ActionExecutionDialog'
+import { ExecuteDayDialog } from '@/components/dashboard/ExecuteDayDialog'
 import { useAppData } from '@/components/data/AppDataProvider'
 import { useVoice } from '@/hooks/useVoice'
 import { getBriefingScript, getActionScript, getConfirmationScript } from '@/lib/voice-scripts'
 import type { RecommendedAction } from '@/types/action'
 
-function rememberCompletedAction(actionId: string) {
+const COMPLETED_ACTIONS_KEY = 'lofty:completedActions'
+const HIDDEN_ACTIONS_KEY = 'lofty:hiddenActions'
+
+function readStoredActionSet(key: string) {
+  if (typeof window === 'undefined') return new Set<string>()
   try {
-    const current = JSON.parse(window.localStorage.getItem('lofty:completedActions') ?? '[]') as string[]
-    window.localStorage.setItem(
-      'lofty:completedActions',
-      JSON.stringify(Array.from(new Set([...current, actionId])).slice(-10)),
-    )
+    const current = JSON.parse(window.localStorage.getItem(key) ?? '[]') as unknown
+    return new Set(Array.isArray(current) ? current.filter((id): id is string => typeof id === 'string') : [])
+  } catch {
+    return new Set<string>()
+  }
+}
+
+function writeStoredActionSet(key: string, ids: Set<string>) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(Array.from(ids).slice(-50)))
+  } catch {
+    // Local storage is best-effort view state for the prototype.
+  }
+}
+
+function rememberStoredAction(key: string, actionId: string) {
+  try {
+    const current = readStoredActionSet(key)
+    current.add(actionId)
+    writeStoredActionSet(key, current)
   } catch {
     // Local storage is best-effort context for the assistant.
   }
 }
 
-function persistCompletedAction(actionId: string) {
-  fetch(`/api/actions/${encodeURIComponent(actionId)}/complete`, {
-    method: 'POST',
-  }).catch((error) => {
+function forgetStoredAction(key: string, actionId: string) {
+  try {
+    const current = readStoredActionSet(key)
+    current.delete(actionId)
+    writeStoredActionSet(key, current)
+  } catch {
+    // Local storage is best-effort context for the assistant.
+  }
+}
+
+function notifyActionCompleted(actionId: string) {
+  window.dispatchEvent(new CustomEvent('lofty:action-completed', {
+    detail: { actionId },
+  }))
+}
+
+function notifyActionHidden(actionId: string) {
+  window.dispatchEvent(new CustomEvent('lofty:action-hidden', {
+    detail: { actionId },
+  }))
+}
+
+function notifyActionRestored(actionId: string) {
+  window.dispatchEvent(new CustomEvent('lofty:action-restored', {
+    detail: { actionId },
+  }))
+}
+
+function notifyAppDataRefresh() {
+  window.dispatchEvent(new Event('lofty:app-data-refresh'))
+}
+
+async function persistCompletedAction(actionId: string) {
+  try {
+    const response = await fetch(`/api/actions/${encodeURIComponent(actionId)}/complete`, {
+      method: 'POST',
+    })
+    if (response.ok) notifyAppDataRefresh()
+  } catch (error) {
     console.error('[Briefing] Could not persist completed action:', error)
-  })
+  }
+}
+
+async function persistRestoredAction(actionId: string) {
+  try {
+    const response = await fetch(`/api/actions/${encodeURIComponent(actionId)}/undo`, {
+      method: 'POST',
+    })
+    if (response.ok) notifyAppDataRefresh()
+  } catch (error) {
+    console.error('[Briefing] Could not restore completed action:', error)
+  }
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
@@ -43,19 +109,85 @@ export default function BriefingPage() {
   const liveActions = data.actions
   const [selectedAction, setSelectedAction] = useState<RecommendedAction | null>(null)
   const [executionAction, setExecutionAction] = useState<RecommendedAction | null>(null)
-  const [doneIds, setDoneIds] = useState<Set<string>>(new Set())
+  const [executeDayOpen, setExecuteDayOpen] = useState(false)
+  const [executeDayActions, setExecuteDayActions] = useState<RecommendedAction[]>([])
+  const [doneIds, setDoneIds] = useState<Set<string>>(() => readStoredActionSet(COMPLETED_ACTIONS_KEY))
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => readStoredActionSet(HIDDEN_ACTIONS_KEY))
+  const [restoredIds, setRestoredIds] = useState<Set<string>>(new Set())
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
+  const [executedOpen, setExecutedOpen] = useState(true)
   const { state: voiceState, activeId: voiceActiveId, speak } = useVoice()
 
-  const markDone = useCallback(
-    (action: RecommendedAction) => {
-      setDoneIds(prev => new Set([...prev, action.id]))
-      rememberCompletedAction(action.id)
-      persistCompletedAction(action.id)
-      if (selectedAction?.id === action.id) setSelectedAction(null)
-      speak(getConfirmationScript(action), `confirm-${action.id}`)
-    },
-    [selectedAction, speak],
-  )
+  const markDone = useCallback((action: RecommendedAction, speakConfirmation = true) => {
+    setDoneIds(prev => {
+      const next = new Set(prev)
+      next.add(action.id)
+      writeStoredActionSet(COMPLETED_ACTIONS_KEY, next)
+      return next
+    })
+    setCheckedIds(prev => {
+      const next = new Set(prev)
+      next.delete(action.id)
+      return next
+    })
+    setRestoredIds(prev => {
+      const next = new Set(prev)
+      next.delete(action.id)
+      return next
+    })
+    rememberStoredAction(COMPLETED_ACTIONS_KEY, action.id)
+    notifyActionCompleted(action.id)
+    void persistCompletedAction(action.id)
+    if (selectedAction?.id === action.id) setSelectedAction(null)
+    if (speakConfirmation) speak(getConfirmationScript(action), `confirm-${action.id}`)
+  }, [selectedAction, speak])
+
+  const removeAction = useCallback((action: RecommendedAction) => {
+    setHiddenIds(prev => {
+      const next = new Set(prev)
+      next.add(action.id)
+      writeStoredActionSet(HIDDEN_ACTIONS_KEY, next)
+      return next
+    })
+    setCheckedIds(prev => {
+      const next = new Set(prev)
+      next.delete(action.id)
+      return next
+    })
+    rememberStoredAction(HIDDEN_ACTIONS_KEY, action.id)
+    notifyActionHidden(action.id)
+    if (selectedAction?.id === action.id) setSelectedAction(null)
+  }, [selectedAction])
+
+  const restoreAction = useCallback((action: RecommendedAction) => {
+    setDoneIds(prev => {
+      const next = new Set(prev)
+      next.delete(action.id)
+      writeStoredActionSet(COMPLETED_ACTIONS_KEY, next)
+      return next
+    })
+    setHiddenIds(prev => {
+      const next = new Set(prev)
+      next.delete(action.id)
+      writeStoredActionSet(HIDDEN_ACTIONS_KEY, next)
+      return next
+    })
+    setRestoredIds(prev => {
+      const next = new Set(prev)
+      next.add(action.id)
+      return next
+    })
+    setCheckedIds(prev => {
+      const next = new Set(prev)
+      next.delete(action.id)
+      return next
+    })
+    forgetStoredAction(COMPLETED_ACTIONS_KEY, action.id)
+    forgetStoredAction(HIDDEN_ACTIONS_KEY, action.id)
+    notifyActionRestored(action.id)
+    void persistRestoredAction(action.id)
+    if (selectedAction?.id === action.id) setSelectedAction(null)
+  }, [selectedAction])
 
   const completeExecution = useCallback(
     (action: RecommendedAction) => {
@@ -64,7 +196,12 @@ export default function BriefingPage() {
     [markDone],
   )
 
-  const visibleActions = liveActions.filter(a => !doneIds.has(a.id))
+  const visibleActions = liveActions.filter(a => (a.status !== 'done' || restoredIds.has(a.id)) && !doneIds.has(a.id) && !hiddenIds.has(a.id))
+  const executedActions = liveActions.filter(a => (a.status === 'done' && !restoredIds.has(a.id)) || doneIds.has(a.id) || hiddenIds.has(a.id))
+  const checkedActions = visibleActions.filter(action => checkedIds.has(action.id))
+  const dayExecutionActions = checkedActions.length > 0 ? checkedActions : visibleActions
+  const allVisibleSelected = visibleActions.length > 0 && checkedActions.length === visibleActions.length
+  const completedCount = liveActions.filter(a => (a.status === 'done' && !restoredIds.has(a.id)) || doneIds.has(a.id)).length
 
   const lead = selectedAction?.leadId
     ? mockLeads.find(l => l.id === selectedAction.leadId) ?? null
@@ -88,6 +225,38 @@ export default function BriefingPage() {
   const handleWhyThis = useCallback((action: RecommendedAction) => {
     setSelectedAction(prev => (prev?.id === action.id ? null : action))
   }, [])
+
+  const toggleActionChecked = useCallback((action: RecommendedAction) => {
+    setCheckedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(action.id)) next.delete(action.id)
+      else next.add(action.id)
+      return next
+    })
+  }, [])
+
+  function toggleSelectAllVisible() {
+    setCheckedIds(prev => {
+      if (allVisibleSelected) return new Set()
+      return new Set([...prev, ...visibleActions.map(action => action.id)])
+    })
+  }
+
+  function markSelectedDone() {
+    checkedActions.forEach(action => markDone(action, false))
+    if (checkedActions.length > 0) {
+      speak(`${checkedActions.length} action${checkedActions.length === 1 ? '' : 's'} marked done.`, 'confirm-bulk-actions')
+    }
+  }
+
+  function removeSelected() {
+    checkedActions.forEach(removeAction)
+  }
+
+  function openExecuteDay() {
+    setExecuteDayActions(dayExecutionActions)
+    setExecuteDayOpen(true)
+  }
 
   const handleHearBriefing = useCallback(() => {
     speak(getBriefingScript('James Carter', liveActions), 'briefing')
@@ -116,16 +285,16 @@ export default function BriefingPage() {
         />
 
         {/* Progress bar */}
-        {doneIds.size > 0 && (
+        {completedCount > 0 && (
           <div className="mb-4 flex items-center gap-3">
             <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
               <div
                 className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                style={{ width: `${(doneIds.size / liveActions.length) * 100}%` }}
+                style={{ width: `${(completedCount / liveActions.length) * 100}%` }}
               />
             </div>
             <span className="text-xs text-gray-500 shrink-0">
-              {doneIds.size} of {liveActions.length} done
+              {completedCount} of {liveActions.length} done
             </span>
           </div>
         )}
@@ -136,10 +305,55 @@ export default function BriefingPage() {
             Recommended Actions
             <span className="ml-2 text-xs font-normal text-gray-400">ranked by AI priority score</span>
           </h2>
-          <Button variant="outline" size="sm" className="text-xs h-7 gap-1">
-            <Sparkles className="w-3 h-3" /> Execute My Day
-          </Button>
+          <div className="flex items-center gap-2">
+            {visibleActions.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs h-7 text-gray-500"
+                onClick={toggleSelectAllVisible}
+              >
+                {allVisibleSelected ? 'Clear selection' : 'Select all'}
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-7 gap-1"
+              disabled={visibleActions.length === 0}
+              onClick={openExecuteDay}
+            >
+              <Sparkles className="w-3 h-3" /> Execute My Day
+            </Button>
+          </div>
         </div>
+
+        {checkedActions.length > 0 && (
+          <div className="mb-3 flex items-center justify-between rounded-xl border border-[#1a6bcc]/15 bg-blue-50 px-3 py-2">
+            <p className="text-xs font-medium text-[#1a6bcc]">
+              {checkedActions.length} selected
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                className="h-7 gap-1 bg-emerald-600 text-xs text-white hover:bg-emerald-700"
+                onClick={markSelectedDone}
+              >
+                <CheckCircle2 className="h-3 w-3" />
+                Mark done
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1 text-xs text-gray-600"
+                onClick={removeSelected}
+              >
+                <X className="h-3 w-3" />
+                Remove from view
+              </Button>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-3">
           {visibleActions.map((action, idx) => {
@@ -158,25 +372,104 @@ export default function BriefingPage() {
                 lead={actionLead}
                 property={actionProperty}
                 isSelected={selectedAction?.id === action.id}
+                isChecked={checkedIds.has(action.id)}
                 isDone={doneIds.has(action.id)}
                 isSpeaking={voiceActiveId === `action-${action.id}` && voiceState === 'playing'}
                 isVoiceLoading={voiceActiveId === `action-${action.id}` && voiceState === 'loading'}
+                onToggleSelect={toggleActionChecked}
                 onWhyThis={handleWhyThis}
                 onExecute={setExecutionAction}
-                onSnooze={() => markDone(action)}
+                onSnooze={() => removeAction(action)}
+                onMarkDone={markDone}
+                onRemove={removeAction}
                 onHearAction={handleHearAction}
               />
             )
           })}
 
-          {doneIds.size === liveActions.length && liveActions.length > 0 && (
+          {visibleActions.length === 0 && liveActions.length > 0 && (
             <div className="flex flex-col items-center justify-center py-10 text-center">
               <CheckCircle2 className="w-10 h-10 text-emerald-500 mb-3" />
               <p className="text-sm font-semibold text-gray-700">You&apos;re all caught up!</p>
-              <p className="text-xs text-gray-400 mt-1">All recommended actions completed for today.</p>
+              <p className="text-xs text-gray-400 mt-1">All recommended actions are done or removed from today&apos;s view.</p>
             </div>
           )}
         </div>
+
+        {executedActions.length > 0 && (
+          <section className="mt-5 rounded-xl border border-gray-100 bg-white shadow-sm">
+            <button
+              type="button"
+              onClick={() => setExecutedOpen((open) => !open)}
+              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+            >
+              <div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <p className="text-sm font-semibold text-gray-900">Executed Tasks</p>
+                  <Badge className="border-0 bg-emerald-100 text-emerald-700">
+                    {executedActions.length}
+                  </Badge>
+                </div>
+                <p className="mt-1 text-xs text-gray-400">
+                  Undo any task to bring the card back for another demo run.
+                </p>
+              </div>
+              <ChevronDown
+                className={[
+                  'h-4 w-4 shrink-0 text-gray-400 transition-transform',
+                  executedOpen ? 'rotate-180' : '',
+                ].join(' ')}
+              />
+            </button>
+
+            {executedOpen && (
+              <div className="border-t border-gray-100 px-4 py-3">
+                <div className="space-y-2">
+                  {executedActions.map((action) => {
+                    const actionLead = action.leadId
+                      ? mockLeads.find(l => l.id === action.leadId) ?? null
+                      : null
+                    const isRemoved = hiddenIds.has(action.id) && !doneIds.has(action.id) && action.status !== 'done'
+
+                    return (
+                      <div
+                        key={action.id}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="truncate text-sm font-semibold text-gray-800">{action.title}</p>
+                            <Badge className={[
+                              'border-0',
+                              isRemoved ? 'bg-gray-200 text-gray-600' : 'bg-emerald-100 text-emerald-700',
+                            ].join(' ')}
+                            >
+                              {isRemoved ? 'Removed' : 'Done'}
+                            </Badge>
+                            {actionLead && (
+                              <span className="text-xs text-gray-400">· {actionLead.email}</span>
+                            )}
+                          </div>
+                          <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">{action.summary}</p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 shrink-0 gap-1 text-xs"
+                          onClick={() => restoreAction(action)}
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                          Undo
+                        </Button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
       </main>
 
 
@@ -190,6 +483,18 @@ export default function BriefingPage() {
           transaction={executionTransaction}
           onClose={() => setExecutionAction(null)}
           onConfirm={completeExecution}
+        />
+      )}
+
+      {executeDayOpen && (
+        <ExecuteDayDialog
+          open
+          actions={executeDayActions}
+          leads={mockLeads}
+          properties={mockProperties}
+          transactions={mockTransactions}
+          onClose={() => setExecuteDayOpen(false)}
+          onActionDone={(action) => markDone(action, false)}
         />
       )}
 

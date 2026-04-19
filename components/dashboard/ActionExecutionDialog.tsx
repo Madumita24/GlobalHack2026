@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { buildActionEmailPlan } from '@/lib/actions/action-email'
 import { buildMailtoHref, buildSmsHref, buildTelHref, defaultLeadMessage, listingMessage } from '@/lib/contact-links'
 import type { RecommendedAction, Transaction } from '@/types/action'
 import type { Lead } from '@/types/lead'
@@ -131,7 +132,7 @@ export function ActionExecutionDialog({
 
     try {
       if (isEmailDeliveryAction(action)) {
-        const emailPayload = buildExecutionEmailPayload(action, lead, property)
+        const emailPayload = buildActionEmailPlan(action, lead, property, transaction)
 
         if (!emailPayload) {
           throw new Error('This action needs a lead email before it can be sent.')
@@ -143,7 +144,10 @@ export function ActionExecutionDialog({
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            ...emailPayload,
+            to: emailPayload.to,
+            recipientName: emailPayload.recipientName,
+            subject: emailPayload.subject,
+            body: emailPayload.body,
             actionId: action.id,
           }),
         })
@@ -543,34 +547,6 @@ function ContactLaunchers({
 
 function isEmailDeliveryAction(action: RecommendedAction) {
   return action.type === 'email' || action.type === 'send_listing'
-}
-
-function buildExecutionEmailPayload(
-  action: RecommendedAction,
-  lead?: Lead | null,
-  property?: Property | null,
-) {
-  if (!lead?.email) return null
-
-  if (action.type === 'send_listing') {
-    return {
-      to: lead.email,
-      recipientName: lead.name,
-      subject: property ? `Listing match: ${property.address}` : action.title,
-      body: property ? listingMessage(lead, property) : action.draftMessage ?? defaultLeadMessage(lead),
-    }
-  }
-
-  if (action.type === 'email') {
-    return {
-      to: lead.email,
-      recipientName: lead.name,
-      subject: action.title,
-      body: action.draftMessage ?? defaultLeadMessage(lead),
-    }
-  }
-
-  return null
 }
 
 function ReasonList({ items }: { items: string[] }) {

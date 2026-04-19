@@ -163,7 +163,7 @@ function mapEvent(item: RawItem, leads: Lead[]): LeadEvent | null {
     description: stringValue(item.description) || describeEvent(item),
     occurredAt: timestamp,
     propertyId: stringValue(item.propertyId) || undefined,
-    metadata: recordValue(item.metadata),
+    metadata: eventMetadata(item),
   }
 }
 
@@ -226,6 +226,18 @@ function recordValue(value: unknown) {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, string | number | boolean>)
     : undefined
+}
+
+function eventMetadata(item: RawItem) {
+  const metadata = recordValue(item.metadata) ?? {}
+  const enriched: Record<string, string | number | boolean> = { ...metadata }
+
+  for (const key of ['replyType', 'requestedTime', 'preferenceSummary', 'nextActionTitle', 'subject', 'fromEmail']) {
+    const value = stringValue(item[key])
+    if (value) enriched[key] = value
+  }
+
+  return Object.keys(enriched).length > 0 ? enriched : undefined
 }
 
 function normalizeLeadStage(value: unknown): LeadStage {
