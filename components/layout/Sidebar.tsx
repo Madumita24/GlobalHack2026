@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { CalendarDays, LayoutDashboard, Sun, Sparkles, Users } from 'lucide-react'
+import { AssistantSidebarPanel, useAssistant } from '@/components/assistant/AssistantWidget'
 import { cn } from '@/lib/utils'
 
 const crmItems = [
@@ -17,9 +18,19 @@ const aiItems = [
 
 export default function Sidebar() {
   const pathname = usePathname()
+  const { open: assistantOpen } = useAssistant()
 
   return (
-    <aside className="flex flex-col w-52 bg-white border-r border-gray-200 shrink-0">
+    <aside
+      className={cn(
+        'flex shrink-0 flex-col border-r border-gray-200 bg-white transition-[width] duration-200',
+        assistantOpen ? 'w-80' : 'w-52',
+      )}
+    >
+      {assistantOpen ? (
+        <AssistantSidebarPanel />
+      ) : (
+        <>
 
       {/* CRM quick access */}
       <div className="px-4 pt-5 pb-3">
@@ -130,6 +141,8 @@ export default function Sidebar() {
           </div>
         </div>
       </div>
+        </>
+      )}
     </aside>
   )
 }
